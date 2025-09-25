@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ML Agro - Recomendaciones Inteligentes</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#333}
+    .container{max-width:1400px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 30px rgba(0,0,0,.1)}
+    .header{background:linear-gradient(135deg,#4CAF50 0%,#45a049 100%);color:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+    .header h1{font-size:24px;font-weight:600;display:flex;align-items:center;gap:10px}
+    .header .subtitle{font-size:14px;opacity:.9;margin-top:5px}
+    .content{padding:30px}
+    .filters-section{background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:30px;border:1px solid #e9ecef}
+    .filters-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-top:15px;align-items:flex-end;}
+    .filter-group{display:flex;flex-direction:column;gap:8px}
+    .filter-group label{font-weight:600;color:#555;font-size:14px}
+    .filter-group select,.filter-group input{padding:10px 12px;border:2px solid #e9ecef;border-radius:8px;font-size:14px;transition:border-color .3s ease}
+    .filter-group select:focus,.filter-group input:focus{outline:none;border-color:#4CAF50}
+    .btn{padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:.3s all;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+    .btn-primary{background:#4CAF50;color:#fff}
+    .btn-primary:hover{background:#45a049;transform:translateY(-2px);box-shadow:0 4px 12px rgba(76,175,80,.3)}
+    .btn-secondary{background:#6c757d;color:#fff}
+    .btn-secondary:hover{background:#5a6268}
+    .recommendations-container{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px}
+    .recommendation-card{background:#fff;border-radius:12px;padding:25px;box-shadow:0 4px 15px rgba(0,0,0,.1);border:1px solid #e9ecef;position:relative;overflow:hidden}
+    .recommendation-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:4px;background:linear-gradient(90deg,#4CAF50,#45a049)}
+    .recommendation-card.primary{border-color:#4CAF50;background:linear-gradient(145deg,#fff 0%,#f8fff8 100%)}
+    .recommendation-card.alternative{border-color:#ffc107}
+    .recommendation-card.alternative::before{background:linear-gradient(90deg,#ffc107,#ffb300)}
+    .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
+    .card-title{font-size:18px;font-weight:700;color:#333;margin-bottom:5px}
+    .confidence-badge{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase}
+    .confidence-high{background:#d4edda;color:#155724}
+    .confidence-medium{background:#fff3cd;color:#856404}
+    .recommendation-details{margin-bottom:20px}
+    .detail-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f1f1}
+    .detail-row:last-child{border-bottom:none}
+    .detail-label{font-weight:600;color:#666}
+    .detail-value{font-weight:500;color:#333}
+    .cost-section{background:#f8f9fa;padding:15px;border-radius:8px;margin-top:15px}
+    .cost-title{font-size:14px;font-weight:600;color:#666;margin-bottom:10px}
+    .cost-breakdown{display:flex;justify-content:space-between;margin-bottom:8px}
+    .cost-total{font-weight:700;color:#333;font-size:16px;border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px}
+    .weather-widget{background:linear-gradient(135deg,#74b9ff 0%,#0984e3 100%);color:#fff;padding:20px;border-radius:12px;margin-bottom:30px;text-align:center}
+    .weather-title{font-size:18px;font-weight:600;margin-bottom:15px}
+    .weather-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px}
+    .weather-item{text-align:center}
+    .weather-icon{font-size:24px;margin-bottom:8px}
+    .weather-value{font-size:20px;font-weight:700}
+    .weather-label{font-size:12px;opacity:.9;text-transform:uppercase}
+    .lote-selector{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.1);margin-bottom:30px}
+    .lote-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:15px;margin-top:15px}
+    .lote-card{padding:15px;border:2px solid #e9ecef;border-radius:8px;cursor:pointer;transition:.3s all;text-align:center}
+    .lote-card:hover{border-color:#4CAF50;transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
+    .lote-card.selected{border-color:#4CAF50;background:#f8fff8}
+    .lote-name{font-weight:600;margin-bottom:5px}
+    .lote-info{font-size:12px;color:#666}
+    .loading{text-align:center;padding:50px}
+    .spinner{border:4px solid #f3f3f3;border-top:4px solid #4CAF50;border-radius:50%;width:50px;height:50px;animation:spin 1s linear infinite;margin:0 auto 20px}
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    .hidden{display:none}
+    .alert{padding:15px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+    .alert-warning{background:#fff3cd;border:1px solid #ffeaa7;color:#856404}
+    .alert-info{background:#d1ecf1;border:1px solid #bee5eb;color:#0c5460}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:999}
+    .modal{background:#fff;border-radius:12px;max-width:720px;width:100%;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .modal-title{font-size:18px;font-weight:700}
+    .modal-close{background:#eee;border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+    .modal-body{max-height:60vh;overflow:auto}
+    .code{background:#111;color:#9efc;padding:12px;border-radius:8px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
+    @media (max-width: 768px){.recommendations-container{grid-template-columns:1fr}.content{padding:20px}.filters-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div>
+        <h1>🌱 ML Agro - Recomendaciones Inteligentes</h1>
+        <div class="subtitle">Sistema de Machine Learning para Optimización Agrícola</div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="lote-selector">
+        <h3>Seleccionar Lote para Análisis</h3>
+        <div class="lote-grid" id="loteGrid"></div>
+      </div>
+
+      <div class="filters-section">
+        <h3>Configuración de Análisis</h3>
+        <div class="filters-grid">
+          <div class="filter-group"><label>Cultivo</label><select id="cultivo"></select></div>
+          <div class="filter-group"><label>Campaña</label><select id="campana"></select></div>
+          <div class="filter-group"><label>Objetivo Rendimiento</label>
+            <select id="objetivo"><option value="alto">Alto Rendimiento</option><option value="equilibrado">Equilibrado</option><option value="bajo_riesgo">Bajo Riesgo</option></select>
+          </div>
+          <div class="filter-group"><button class="btn btn-primary" id="btnReco">🔍 Generar Recomendación</button></div>
+          <div class="filter-group"><button class="btn btn-secondary" id="btnCosecha">🚜 Calcular Cosecha</button></div>
+        </div>
+      </div>
+
+      <div class="weather-widget">
+        <div class="weather-title">Condiciones Climáticas (7 días promedio)</div>
+        <div class="weather-grid">
+          <div class="weather-item"><div class="weather-icon">🌡️</div><div class="weather-value" id="wTemp">—</div><div class="weather-label">Temperatura</div></div>
+          <div class="weather-item"><div class="weather-icon">💧</div><div class="weather-value" id="wHum">—</div><div class="weather-label">Humedad</div></div>
+          <div class="weather-item"><div class="weather-icon">🌧️</div><div class="weather-value" id="wPcp">—</div><div class="weather-label">Precipitación</div></div>
+          <div class="weather-item"><div class="weather-icon">💨</div><div class="weather-value" id="wWnd">—</div><div class="weather-label">Viento</div></div>
+          <div class="weather-item"><div class="weather-icon">☀️</div><div class="weather-value" id="wSun">—</div><div class="weather-label">Horas de Sol</div></div>
+        </div>
+      </div>
+
+      <div id="alertInfo" class="alert alert-info hidden"><span>ℹ️</span><div><strong>Información:</strong> Resultados actualizados para el lote y cultivo seleccionado.</div></div>
+      <div id="alertWarn" class="alert alert-warning hidden"><span>⚠️</span><div><strong>Atención:</strong> Ocurrió un error al obtener datos.</div></div>
+
+      <div id="loading" class="loading hidden"><div class="spinner"></div><p>Procesando análisis...</p><p style="font-size:14px;color:#666;">Analizando datos históricos, clima y suelo</p></div>
+
+      <div id="recommendations" class="recommendations-container hidden">
+        <div class="recommendation-card primary">
+          <div class="card-header">
+            <div><div class="card-title">🏆 Recomendación Principal</div><div style="color:#666;font-size:14px;">Óptima para sus condiciones</div></div>
+            <div id="primary_conf" class="confidence-badge confidence-high">—</div>
+          </div>
+          <div class="recommendation-details">
+            <div class="detail-row"><span class="detail-label">Fecha Óptima de Siembra</span><span id="primary_fecha" class="detail-value"><strong>—</strong></span></div>
+            <div class="detail-row"><span class="detail-label">Ventana Recomendada</span><span id="primary_ventana" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Variedad Sugerida</span><span id="primary_variedad" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Densidad de Siembra</span><span id="primary_densidad" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Rendimiento Esperado</span><span id="primary_rinde" class="detail-value"><strong>—</strong></span></div>
+          </div>
+          <div class="cost-section">
+            <div class="cost-title">💰 Costos por Hectárea</div>
+            <div class="cost-breakdown"><span>Semillas</span><span id="cSemillas">—</span></div>
+            <div class="cost-breakdown"><span>Fertilización Base</span><span id="cFerti">—</span></div>
+            <div class="cost-breakdown"><span>Protección</span><span id="cProt">—</span></div>
+            <div class="cost-breakdown cost-total"><span>Total por Ha</span><span id="cTotal"><strong>—</strong></span></div>
+          </div>
+          <div style="margin-top:20px;">
+            <button class="btn btn-primary" id="btnAplicar">✅ Aplicar Recomendación</button>
+            <button class="btn btn-secondary" id="btnDetalles">📋 Ver Detalles</button>
+          </div>
+        </div>
+
+        <div class="recommendation-card alternative">
+          <div class="card-header">
+            <div><div class="card-title">🥈 Alternativa 1</div><div style="color:#666;font-size:14px;">Opción conservadora</div></div>
+            <div id="alt_conf" class="confidence-badge confidence-medium">—</div>
+          </div>
+          <div class="recommendation-details">
+            <div class="detail-row"><span class="detail-label">Fecha Óptima de Siembra</span><span id="alt_fecha" class="detail-value"><strong>—</strong></span></div>
+            <div class="detail-row"><span class="detail-label">Ventana Recomendada</span><span id="alt_ventana" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Variedad Sugerida</span><span id="alt_variedad" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Densidad de Siembra</span><span id="alt_densidad" class="detail-value">—</span></div>
+            <div class="detail-row"><span class="detail-label">Rendimiento Esperado</span><span id="alt_rinde" class="detail-value"><strong>—</strong></span></div>
+          </div>
+          <div class="cost-section">
+            <div class="cost-title">💰 Costos por Hectárea (Alt)</div>
+            <div class="cost-breakdown"><span>Semillas</span><span>$90</span></div>
+            <div class="cost-breakdown"><span>Fertilización Base</span><span>$110</span></div>
+            <div class="cost-breakdown"><span>Protección</span><span>$50</span></div>
+            <div class="cost-breakdown cost-total"><span>Total por Ha</span><span><strong>$250</strong></span></div>
+          </div>
+          <div style="margin-top:20px;">
+            <button class="btn btn-secondary" id="btnComparar">🔍 Comparar</button>
+            <button class="btn btn-secondary" id="btnDetallesAlt">📋 Ver Detalles</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Detalles</div>
+        <button class="modal-close" id="modalClose">Cerrar</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/v1';
+    let LOTES = [];
+    let ACTIVE_LOTE_ID = null;
+    let lastResult = {};
+    let isGenerating = false;
+
+    const $ = (id) => document.getElementById(id);
+    const show = (el) => el.classList.remove('hidden');
+    const hide = (el) => el.classList.add('hidden');
+
+    function fmtDateISO(iso) {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso + 'T00:00:00');
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            if (isNaN(d.getDate())) return iso;
+            return d.getDate() + ' de ' + months[d.getMonth()];
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    async function apiCall(method, path, body) {
+        const url = API_BASE + path;
+        const options = {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+        };
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} en ${path}`);
+        }
+        return await response.json();
+    }
+    const getJSON = (path) => apiCall('GET', path);
+    const postJSON = (path, body) => apiCall('POST', path, body);
+
+    async function loadInitialData() {
+        try {
+            const [lotesRes, campRes] = await Promise.all([
+                getJSON('/catalogo/lotes'),
+                getJSON('/catalogo/campanas')
+            ]);
+            LOTES = lotesRes.items || [];
+            const grid = $('loteGrid');
+            grid.innerHTML = '';
+            LOTES.forEach((l, i) => {
+                const div = document.createElement('div');
+                div.className = 'lote-card' + (i === 0 ? ' selected' : '');
+                div.dataset.loteId = l.id;
+                div.innerHTML = `<div class="lote-name">${l.nombre}</div><div class="lote-info">${l.area_ha} ha - ${l.cultivo.charAt(0).toUpperCase() + l.cultivo.slice(1)}</div>`;
+                div.addEventListener('click', onLoteClick);
+                grid.appendChild(div);
+            });
+            ACTIVE_LOTE_ID = LOTES[0]?.id;
+            const campSel = $('campana');
+            campSel.innerHTML = (campRes.items || []).map(c => `<option value="${c}">${c}</option>`).join('');
+            const selCultivo = $('cultivo');
+            ['trigo', 'soja', 'maiz', 'cebada'].forEach(c => {
+                selCultivo.innerHTML += `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`;
+            });
+            updateCultivoSelect();
+            await updateWeatherData();
+            await generarRecomendacion();
+        } catch (e) {
+            console.error("Error en la carga inicial:", e);
+            show($('alertWarn'));
+        }
+    }
+
+    function onLoteClick(event) {
+        document.querySelectorAll('.lote-card').forEach(c => c.classList.remove('selected'));
+        const selectedCard = event.currentTarget;
+        selectedCard.classList.add('selected');
+        ACTIVE_LOTE_ID = selectedCard.dataset.loteId;
+        updateCultivoSelect();
+        updateWeatherData();
+        generarRecomendacion();
+    }
+
+    function updateCultivoSelect() {
+        const lote = LOTES.find(x => x.id === ACTIVE_LOTE_ID);
+        if (lote) $('cultivo').value = lote.cultivo;
+    }
+
+    async function updateWeatherData() {
+        const lote = LOTES.find(x => x.id === ACTIVE_LOTE_ID);
+        if (!lote) return;
+        try {
+            const clima = await postJSON('/predicciones/clima', { periodo: 'actual', coords: { latitud: lote.latitud, longitud: lote.longitud } });
+            const m = clima?.mensual;
+            $('wTemp').textContent = `${m?.temp_media_c ?? '—'}°C`;
+            $('wPcp').textContent = `${m?.precipitacion_mm ?? '—'}mm`;
+            $('wHum').textContent = `${m?.humedad ?? '—'}%`;
+            $('wWnd').textContent = `${m?.viento_kmh ?? '—'} km/h`;
+            $('wSun').textContent = `${m?.horas_sol ?? '—'} h`;
+        } catch (e) {
+            console.error("Error en Weather:", e);
+        }
+    }
+
+    async function generarRecomendacion() {
+        if (isGenerating) return;
+        isGenerating = true;
+        hide($('alertWarn'));
+        hide($('alertInfo'));
+        show($('loading'));
+        hide($('recommendations'));
+        
+        const cultivoActual = $('cultivo').value;
+        const objetivoActual = $('objetivo').value;
+        const loteSeleccionado = LOTES.find(x => x.id === ACTIVE_LOTE_ID);
+        if (!loteSeleccionado) {
+            isGenerating = false;
+            hide($('loading'));
+            return;
+        }
+        
+        const coords = { latitud: loteSeleccionado.latitud, longitud: loteSeleccionado.longitud };
+        const hoy = new Date().toISOString().slice(0, 10);
+
+        try {
+            const [siembra, variedades, rinde, ferti] = await Promise.all([
+                postJSON('/recomendaciones/siembra', { cultivo: cultivoActual, coords, fecha_referencia: hoy, lote_id: loteSeleccionado.id }),
+                postJSON('/recomendaciones/variedades', { cultivo: cultivoActual, objetivos: [objetivoActual] }),
+                postJSON('/predicciones/rendimiento', { cultivo: cultivoActual, lote_id: loteSeleccionado.id }),
+                postJSON('/optimizacion/fertilizacion', { cultivo: cultivoActual, lote_id: loteSeleccionado.id, objetivo: objetivoActual })
+            ]);
+            lastResult = { siembra, variedades, rinde, ferti };
+            paintAll();
+            show($('recommendations'));
+            show($('alertInfo'));
+        } catch (e) {
+            console.error("Error en generarRecomendacion():", e);
+            show($('alertWarn'));
+        } finally {
+            hide($('loading'));
+            isGenerating = false;
+        }
+    }
+
+    async function generarCosecha() {
+        if (isGenerating) return;
+        isGenerating = true;
+        show($('loading'));
+        const cultivoActual = $('cultivo').value;
+        const loteSeleccionado = LOTES.find(x => x.id === ACTIVE_LOTE_ID);
+        if (!loteSeleccionado) { isGenerating = false; hide($('loading')); return; }
+        try {
+            const cos = await postJSON('/optimizacion/cosecha', { cultivo: cultivoActual, lote_id: loteSeleccionado.id });
+            const ventana = cos?.ventana_recomendada ?? [];
+            openModal('Ventana de Cosecha', `<p><strong>Ventana:</strong> ${fmtDateISO(ventana[0])} - ${fmtDateISO(ventana[1])}</p><p><strong>Riesgos:</strong> ${(cos?.riesgos || []).join(', ')}</p>`);
+        } catch (e) {
+            console.error("Error en generarCosecha():", e);
+            show($('alertWarn'));
+        } finally {
+            hide($('loading'));
+            isGenerating = false;
+        }
+    }
+
+    function paintAll() {
+        const { siembra, variedades, rinde, ferti } = lastResult;
+        if (!siembra || !variedades || !rinde || !ferti) return;
+
+        const principalS = siembra.recomendacion_principal;
+        const principalV = variedades.recomendacion_principal;
+        const principalR = rinde.resultado;
+        
+        setConfidence($('primary_conf'), principalS?.confianza);
+        $('primary_fecha').innerHTML = `<strong>${fmtDateISO(principalS?.fecha_optima)}</strong>`;
+        $('primary_ventana').textContent = (principalS?.ventana ?? []).map(fmtDateISO).join(' - ');
+        $('primary_variedad').textContent = principalV?.variedad ?? '—';
+        $('primary_densidad').textContent = principalV?.densidad ?? '—';
+        const rendimientoKgHa = principalR?.rendimiento_kg_ha;
+        $('primary_rinde').innerHTML = `<strong>${typeof rendimientoKgHa === 'number' ? rendimientoKgHa.toLocaleString('es-AR') : '—'} kg/ha</strong>`;
+        
+        const altS = siembra.alternativas?.[0];
+        const altV = variedades.alternativas?.[0];
+        
+        setConfidence($('alt_conf'), altS?.confianza);
+        $('alt_fecha').innerHTML = `<strong>${fmtDateISO(altS?.fecha)}</strong>`;
+        $('alt_ventana').textContent = (principalS?.ventana ?? []).map(fmtDateISO).join(' - ');
+        $('alt_variedad').textContent = altV?.variedad ?? '—';
+        $('alt_densidad').textContent = altV?.densidad ?? '—';
+        const altRinde = typeof rendimientoKgHa === 'number' ? Math.max(0, rendimientoKgHa - 250).toLocaleString('es-AR') : '—';
+        $('alt_rinde').innerHTML = `<strong>${altRinde} kg/ha</strong>`;
+        
+        paintCostos(ferti?.costos);
+    }
+
+    function paintCostos(costos) {
+        const cx = costos ?? {};
+        $('cSemillas').textContent = cx.semillas != null ? `$${cx.semillas}` : '—';
+        $('cFerti').textContent = cx.fertilizacion != null ? `$${cx.fertilizacion}` : '—';
+        $('cProt').textContent = cx.proteccion != null ? `$${cx.proteccion}` : '—';
+        $('cTotal').innerHTML = `<strong>${cx.total != null ? `$${cx.total}` : '—'}</strong>`;
+    }
+
+    function setConfidence(el, v) {
+        const confidenceValue = v ?? 0.8;
+        const pct = Math.round(confidenceValue * 100);
+        el.textContent = `${pct}% Confianza`;
+        el.className = 'confidence-badge';
+        if (pct >= 80) {
+            el.classList.add('confidence-high');
+        } else {
+            el.classList.add('confidence-medium');
+        }
+    }
+
+    function openModal(title, html) {
+        $('modalTitle').textContent = title;
+        $('modalBody').innerHTML = html;
+        $('modalBackdrop').style.display = 'flex';
+    }
+
+    function closeModal() {
+        $('modalBackdrop').style.display = 'none';
+    }
+    
+    // Attach event listeners
+    document.addEventListener('DOMContentLoaded', loadInitialData);
+    $('btnReco').addEventListener('click', generarRecomendacion);
+    $('btnCosecha').addEventListener('click', generarCosecha);
+    $('btnAplicar').addEventListener('click', () => {
+        const lote = LOTES.find(x => x.id === ACTIVE_LOTE_ID);
+        if (!lote) return;
+        const { siembra, variedades, rinde, ferti } = lastResult;
+        const seleccion = {
+            cultivo: $('cultivo').value, lote: lote.id,
+            siembra: siembra?.recomendacion_principal,
+            variedad: variedades?.recomendacion_principal,
+            rendimiento: rinde?.resultado,
+            costos: ferti?.costos
+        };
+        postJSON('/acciones/aplicar', { lote_id: lote.id, cultivo: seleccion.cultivo, seleccion })
+            .then(res => openModal('Recomendación Aplicada', `<p>Se registró la aplicación para el lote ${lote.nombre}.</p><div class="code">${JSON.stringify(res, null, 2)}</div>`))
+            .catch(e => openModal('Error al aplicar', `<p>${e}</p>`));
+    });
+    $('btnDetalles').addEventListener('click', () => verDetalles(true));
+    $('btnDetallesAlt').addEventListener('click', () => verDetalles(false));
+    $('btnComparar').addEventListener('click', () => {
+        const { siembra, variedades } = lastResult;
+        if (!siembra || !variedades) { openModal('Sin datos', 'No hay suficientes datos para comparar.'); return; }
+        const pV = variedades?.recomendacion_principal;
+        const aV = variedades?.alternativas?.[0];
+        const pS = siembra?.recomendacion_principal;
+        const aS = siembra?.alternativas?.[0];
+        const rows = [
+            ['Variedad', pV?.variedad || '—', aV?.variedad || '—'],
+            ['Justificación', (pV?.justificacion || []).join(', '), (aV?.justificacion || []).join(', ')],
+            ['Densidad', pV?.densidad || '—', aV?.densidad || '—'],
+            ['Fecha óptima', fmtDateISO(pS?.fecha_optima), fmtDateISO(aS?.fecha)],
+            ['Ventana', (pS?.ventana || []).map(fmtDateISO).join(' - '), (aS?.ventana || pS?.ventana || []).map(fmtDateISO).join(' - ')]
+        ];
+        const table = `
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr><th style="text-align:left;border-bottom:1px solid #ddd;padding:8px"></th>
+                  <th style="text-align:left;border-bottom:1px solid #ddd;padding:8px">Principal</th>
+                  <th style="text-align:left;border-bottom:1px solid #ddd;padding:8px">Alternativa</th></tr></thead>
+              <tbody>
+                ${rows.map(r=>`<tr><td style="padding:8px;border-bottom:1px solid #f1f1f1"><strong>${r[0]}</strong></td><td style="padding:8px;border-bottom:1px solid #f1f1f1">${r[1]}</td><td style="padding:8px;border-bottom:1px solid #f1f1f1">${r[2]}</td></tr>`).join('')}
+              </tbody>
+            </table>`;
+        openModal('Comparación — Principal vs Alternativa', table);
+    });
+    $('modalClose').addEventListener('click', closeModal);
+    $('modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'modalBackdrop') closeModal(); });
+
+    function verDetalles(principal = true) {
+        const { siembra, variedades, rinde, ferti } = lastResult;
+        if (!siembra || !variedades || !rinde || !ferti) { openModal('Sin datos', 'No hay datos para mostrar detalles.'); return; }
+        const varObj = principal ? variedades.recomendacion_principal : variedades.alternativas?.[0];
+        const siemObj = principal ? siembra.recomendacion_principal : siembra.alternativas?.[0];
+        const fac = rinde.resultado?.factores_clave || [];
+        const cx = ferti.costos || {};
+        const html = `
+            <h4>Detalle Técnico</h4>
+            <ul>
+                <li><strong>Variedad:</strong> ${varObj?.variedad || '—'}</li>
+                <li><strong>Justificación:</strong> ${(varObj?.justificacion || []).join(', ')}</li>
+                <li><strong>Densidad:</strong> ${varObj?.densidad || '—'}</li>
+                <li><strong>Fecha óptima:</strong> ${fmtDateISO(siemObj?.fecha_optima)}</li>
+                <li><strong>Ventana:</strong> ${(siemObj?.ventana || []).map(fmtDateISO).join(' - ')}</li>
+                <li><strong>Factores clave (rendimiento):</strong> ${fac.join(', ')}</li>
+            </ul>
+            <h4 style="margin-top:12px;">Costos</h4>
+            <ul>
+                <li>Semillas: $${cx.semillas ?? '—'}</li>
+                <li>Fertilización: $${cx.fertilizacion ?? '—'}</li>
+                <li>Protección: $${cx.proteccion ?? '—'}</li>
+                <li><strong>Total:</strong> $${cx.total ?? '—'}</li>
+            </ul>`;
+        openModal(principal ? 'Detalles — Principal' : 'Detalles — Alternativa', html);
+    }
+  </script>
+</body>
+</html>
