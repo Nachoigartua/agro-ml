@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/ml_agro
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+    volumes:
+      - ./models:/app/models
+
+  postgres:
+    image: postgis/postgis:13-3.1
+    environment:
+      - POSTGRES_DB=ml_agro
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_data:
