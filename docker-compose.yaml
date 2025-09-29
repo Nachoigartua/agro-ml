@@ -1,55 +1,44 @@
-version: '3.9'
+version: "3.9"
+
 services:
   db:
     image: postgis/postgis:16-3.4
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports: ['5432:5432']
+      POSTGRES_DB: mlagrico
+      POSTGRES_USER: ml_user
+      POSTGRES_PASSWORD: ml_password
+    ports:
+      - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
-      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ['CMD-SHELL','pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ["CMD-SHELL", "pg_isready -U ml_user -d mlagrico"]
       interval: 5s
       timeout: 3s
       retries: 20
-  redis:
-    image: redis:7-alpine
-    ports: ['6379:6379']
+
   backend:
-    build: ./backend
+    build:
+      context: ./backend
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      MAIN_API_BASE: ${MAIN_API_BASE}
-      API_KEY: ${API_KEY}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: mlagrico
+      DB_USER: ml_user
+      DB_PASSWORD: ml_password
+      DATASOURCE: postgres
+      CORS_ALLOWED_ORIGINS: http://localhost:8080,http://localhost
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
-    # --- NUEVO AQUÍ ---
-    # Se define una prueba de salud que intenta acceder al endpoint /health.
-    # Docker esperará a que esta prueba sea exitosa antes de considerar
-    # al servicio como 'healthy'.
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
-    ports: ['8080:80']
+    build:
+      context: ./frontend/webapp
     depends_on:
-      backend:
-        condition: service_healthy
-
-volumes: { db_data: {} }
+      - backend
+    ports:
+      - "8080:80"

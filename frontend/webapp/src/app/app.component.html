@@ -1,0 +1,84 @@
+<div class="shell">
+  <header class="appbar">
+    <div class="brand">🌱 Agro ML</div>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <h2>Parámetros</h2>
+      <div class="grid">
+        <label>
+          Lote
+          <select
+            [ngModel]="selectedLoteId()"
+            (ngModelChange)="selectedLoteId.set($event)"
+          >
+            <option *ngFor="let l of lotes()" [value]="l.id">
+              {{ l.nombre }} ({{ l.hectareas }} ha)
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Campaña
+          <select
+            [ngModel]="selectedCampanaId()"
+            (ngModelChange)="selectedCampanaId.set($event)"
+          >
+            <option *ngFor="let c of campanas()" [value]="c.id">
+              {{ c.nombre }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <button class="primary" (click)="generar()">
+        {{ loading() ? 'Generando…' : 'Generar recomendaciones' }}
+      </button>
+      <p class="error" *ngIf="error()">{{ error() }}</p>
+    </section>
+
+    <section class="panel two-col">
+      <div>
+        <h3>Clima (últimos 7 días)</h3>
+        <div *ngIf="clima(); else noClima" class="stats">
+          <div class="stat"><span>Temp. media</span><strong>{{ clima()!.temp_media | number:'1.0-1' }} °C</strong></div>
+          <div class="stat"><span>Precipitación</span><strong>{{ clima()!.precip | number:'1.0-1' }} mm</strong></div>
+          <div class="stat"><span>Humedad</span><strong>{{ clima()!.humedad | number:'1.0-0' }} %</strong></div>
+          <div class="stat"><span>Viento</span><strong>{{ clima()!.viento | number:'1.0-0' }} km/h</strong></div>
+          <div class="stat"><span>Radiación</span><strong>{{ clima()!.radiacion | number:'1.0-1' }} MJ/m²</strong></div>
+        </div>
+        <ng-template #noClima><p class="muted">Sin datos climáticos.</p></ng-template>
+      </div>
+
+      <div>
+        <h3>Fertilización sugerida</h3>
+        <div *ngIf="fert(); else noFert" class="stats">
+          <div class="stat"><span>N</span><strong>{{ fert()!.n_kg_ha }} kg/ha</strong></div>
+          <div class="stat"><span>P</span><strong>{{ fert()!.p_kg_ha }} kg/ha</strong></div>
+          <div class="stat"><span>K</span><strong>{{ fert()!.k_kg_ha }} kg/ha</strong></div>
+        </div>
+        <p *ngIf="fert()?.observaciones" class="muted">{{ fert()!.observaciones }}</p>
+        <ng-template #noFert><p class="muted">Generá para ver el plan.</p></ng-template>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Variedades recomendadas</h3>
+      <ul class="chips" *ngIf="variedades(); else novar">
+        <li *ngFor="let v of variedades()"><strong>{{ v.variedad }}</strong><span>{{ v.razon }}</span></li>
+      </ul>
+      <ng-template #novar><p class="muted">Todavía no hay sugerencias.</p></ng-template>
+    </section>
+
+    <section class="panel">
+      <h3>Siembra</h3>
+      <div *ngIf="siembra(); else nosi" class="stats">
+        <div class="stat"><span>Densidad</span><strong>{{ siembra()!.densidad_plantas_ha }} pl/ha</strong></div>
+        <div class="stat"><span>Profundidad</span><strong>{{ siembra()!.profundidad_cm }} cm</strong></div>
+      </div>
+      <p *ngIf="siembra()?.observaciones" class="muted">{{ siembra()!.observaciones }}</p>
+      <ng-template #nosi><p class="muted">Generá para ver la recomendación.</p></ng-template>
+    </section>
+  </main>
+</div>

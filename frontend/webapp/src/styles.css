@@ -1,0 +1,3 @@
+/* Global styles; keep minimal because component has its own palette */
+html, body { height: 100%; }
+body { margin: 0; }

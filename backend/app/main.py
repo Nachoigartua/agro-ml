@@ -1,183 +1,196 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .config import settings
-from .security import api_key_checker, rate_limiter
-from .models import SiembraRequest, VariedadRequest, ClimaRequest, FertilizacionRequest, AgroquimicosRequest, RendimientoRequest, CosechaRequest, AplicarRequest
-from .cache import make_cache_key, cache_get, cache_set, TTL_BY_TYPE
-from .metrics import metrics
-from .db import get_db_cursor
-from .predictors.siembra import SiembraPredictor
-from .predictors.rendimiento import RendimientoPredictor
-from .predictors.variedades import VariedadesPredictor
-import time
+from pydantic import BaseModel
+from typing import List, Optional
+import logging
 
-app = FastAPI(title="ML Agrícola API", version="0.2.0")
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+from app.config import CFG
+from app.db import get_conn
+from app.datasources.base import DataSource, Campana, Cultivo, Lote
+from app.datasources.finnegans import FinAPISource
+from app.datasources.postgres import PostgresSource
+
+# ---- Logging ----
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("agro-ml")
+
+# ---- App & CORS ----
+app = FastAPI(title="Agro ML API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=CFG.CORS_ALLOWED_ORIGINS.split(","),
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True
 )
+
+# ---- Rate limiting ----
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request, exc):
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."})
+
+# ---- Request/Response models ----
+class Coordinates(BaseModel):
+    latitud: float
+    longitud: float
+
+class ClimaRequest(BaseModel):
+    coords: Coordinates
+    dias: int = 7
+
+class RendimientoRequest(BaseModel):
+    lote_id: str
+
+class SiembraRequest(BaseModel):
+    lote_id: str
+
+class VariedadesRequest(BaseModel):
+    lote_id: str
+
+class ClimateSummary(BaseModel):
+    temp_media: float
+    precip: float
+    humedad: float
+    viento: float
+    radiacion: float
+
+class SiembraRecomendacion(BaseModel):
+    densidad_plantas_ha: int
+    profundidad_cm: int
+    observaciones: Optional[str] = None
+
+class VariedadRecomendacion(BaseModel):
+    variedad: str
+    razon: str
+
+class FertilizacionPlan(BaseModel):
+    n_kg_ha: int
+    p_kg_ha: int
+    k_kg_ha: int
+    observaciones: Optional[str] = None
+
+class RendimientoPrediccion(BaseModel):
+    rendimiento_kg_ha: int
+    intervalo_confianza_kg_ha: List[int]
+
+# ---- DataSource factory ----
+def get_datasource() -> DataSource:
+    ds = CFG.DATASOURCE.lower()
+    if ds == "postgres":
+        return PostgresSource(get_conn())
+    elif ds == "finnegans":
+        return FinAPISource(CFG.FIN_URL, CFG.FIN_API_KEY)
+    raise RuntimeError(f"Unknown DATASOURCE={CFG.DATASOURCE}")
+
+# ---- Catálogo ----
+@app.get("/api/v1/catalogo/campanas", response_model=List[Campana])
+@limiter.limit("30/minute")
+def catalogo_campanas(ds: DataSource = Depends(get_datasource)):
+    return ds.get_campanas()
+
+@app.get("/api/v1/catalogo/lotes", response_model=List[Lote])
+@limiter.limit("30/minute")
+def catalogo_lotes(ds: DataSource = Depends(get_datasource)):
+    return ds.get_lotes()
+
+@app.get("/api/v1/catalogo/cultivos", response_model=List[Cultivo])
+@limiter.limit("30/minute")
+def catalogo_cultivos(ds: DataSource = Depends(get_datasource)):
+    return ds.get_cultivos()
+
+# ---- Predicciones & Recomendaciones ----
+@app.post("/api/v1/predicciones/clima", response_model=ClimateSummary)
+@limiter.limit("30/minute")
+def prediccion_clima(body: ClimaRequest, ds: DataSource = Depends(get_datasource)):
+    c = ds.climate_summary(body.coords.latitud, body.coords.longitud, body.dias)
+    if c is None:
+        raise HTTPException(404, "Sin datos climáticos para esa ubicación.")
+    return c
+
+@app.post("/api/v1/predicciones/rendimiento", response_model=RendimientoPrediccion)
+@limiter.limit("20/minute")
+def prediccion_rendimiento(body: RendimientoRequest, ds: DataSource = Depends(get_datasource)):
+    lotes = {l.id: l for l in ds.get_lotes()}
+    lote = lotes.get(body.lote_id)
+    yields = ds.historic_yields(body.lote_id)
+    base = int(sum(yields) / len(yields)) if yields else 6000
+    adj = 0
+    if lote:
+        clima = ds.climate_summary(lote.latitud, lote.longitud, 7)
+        if clima:
+            adj += int((22 - abs(clima.temp_media - 22)) * 50)
+            adj -= int(min(clima.viento, 40) * 10)
+            adj += int(min(clima.radiacion, 25) * 20)
+    y = max(3000, base + adj)
+    return RendimientoPrediccion(rendimiento_kg_ha=y, intervalo_confianza_kg_ha=[int(y*0.9), int(y*1.1)])
+
+@app.post("/api/v1/recomendaciones/siembra", response_model=SiembraRecomendacion)
+@limiter.limit("20/minute")
+def recomendaciones_siembra(body: SiembraRequest, ds: DataSource = Depends(get_datasource)):
+    lotes = {l.id: l for l in ds.get_lotes()}
+    lote = lotes.get(body.lote_id)
+    if not lote:
+        raise HTTPException(404, "Lote no encontrado")
+    clima = ds.climate_summary(lote.latitud, lote.longitud, 14)
+    densidad = 65000
+    profundidad = 5
+    obs = []
+    if clima:
+        if clima.precip < 5:
+            profundidad += 1
+            obs.append("Baja precipitación reciente: aumentar 1 cm la profundidad.")
+        if clima.humedad < 40:
+            densidad -= 5000
+            obs.append("Humedad relativa baja: reducir densidad 5k pl/ha.")
+        if clima.temp_media < 15:
+            obs.append("Temperatura fresca: considerar fecha de siembra más tardía.")
+    return SiembraRecomendacion(densidad_plantas_ha=densidad, profundidad_cm=profundidad, observaciones=" ".join(obs) or None)
+
+@app.post("/api/v1/recomendaciones/variedades", response_model=List[VariedadRecomendacion])
+@limiter.limit("20/minute")
+def recomendaciones_variedades(body: VariedadesRequest, ds: DataSource = Depends(get_datasource)):
+    lotes = {l.id: l for l in ds.get_lotes()}
+    lote = lotes.get(body.lote_id)
+    if not lote:
+        raise HTTPException(404, "Lote no encontrado")
+    clima = ds.climate_summary(lote.latitud, lote.longitud, 30)
+    out: List[VariedadRecomendacion] = []
+    if not clima:
+        out.append(VariedadRecomendacion(variedad="Híbrido Templado 120", razon="Selección base sin clima."))
+        return out
+    if clima.precip >= 15 and clima.humedad >= 50:
+        out.append(VariedadRecomendacion(variedad="Alto Potencial 125", razon="Alta precipitación y buena humedad."))
+    if clima.temp_media >= 24:
+        out.append(VariedadRecomendacion(variedad="Ciclo Corto 110", razon="Temp. media elevada."))
+    if clima.viento >= 20:
+        out.append(VariedadRecomendacion(variedad="Tallo Firme 118", razon="Vientos intensos en la zona."))
+    if not out:
+        out.append(VariedadRecomendacion(variedad="Equilibrado 115", razon="Condiciones balanceadas."))
+    return out
+
+@app.post("/api/v1/optimizacion/fertilizacion", response_model=FertilizacionPlan)
+@limiter.limit("10/minute")
+def optimizacion_fertilizacion(body: SiembraRequest, ds: DataSource = Depends(get_datasource)):
+    mo = ds.soil_mo(body.lote_id)
+    if mo is None:
+        mo = 2.0
+    n = 140 - int((mo - 2.0) * 15)
+    p = 40
+    k = 30
+    n = max(80, n)
+    return FertilizacionPlan(n_kg_ha=n, p_kg_ha=p, k_kg_ha=k, observaciones=f"MO={mo:.1f}%. Ajustar con análisis real.")
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
-
-@app.get("/metrics")
-def metrics_endpoint():
-    return metrics.snapshot()
-
-@app.get("/")
-def root():
-    return {"service": "ml-agrico-backend", "version": "0.2.0"}
-
-# API_DEPENDENCIES = [Depends(api_key_checker), Depends(rate_limiter)]
-
-@app.get("/api/v1/catalogo/lotes")
-def catalogo_lotes():
-    with get_db_cursor() as cur:
-        cur.execute("SELECT id,nombre,area_ha,cultivo,latitud,longitud FROM lotes ORDER BY id")
-        rows = cur.fetchall()
-    return {"items": rows}
-
-@app.get("/api/v1/catalogo/campanas")
-def catalogo_campanas():
-    return {"items": ["2024-25", "2025-26"]}
-
-@app.get("/api/v1/catalogo/analisis")
-def catalogo_analisis():
-    return {"items": ["siembra", "variedades", "clima", "fertilizacion", "rendimiento", "cosecha"]}
-
-@app.post("/api/v1/recomendaciones/siembra")
-def recomendaciones_siembra(req: SiembraRequest):
-    payload = req.model_dump()
-    key = make_cache_key("siembra", payload)
-    if (c := cache_get(key)):
-        return c
-    start = time.time()
-    pred = SiembraPredictor().predict(payload)
-    metrics.track("siembra", time.time() - start)
-    result = {
-        "tipo": "siembra", "lote_id": req.lote_id, "cultivo": req.cultivo,
-        "fecha_validez_desde": pred["recomendacion_principal"]["ventana"][0],
-        "fecha_validez_hasta": pred["recomendacion_principal"]["ventana"][1],
-        "recomendacion_principal": pred["recomendacion_principal"],
-        "alternativas": pred["alternativas"],
-        "nivel_confianza": pred["recomendacion_principal"]["confianza"],
-        "modelo_version": SiembraPredictor.MODEL_VERSION
-    }
-    cache_set(key, result, TTL_BY_TYPE["siembra"])
-    return result
-
-@app.post("/api/v1/recomendaciones/variedades")
-def recomendaciones_variedades(req: VariedadRequest):
-    payload = req.model_dump()
-    key = make_cache_key("variedades", payload)
-    if (c := cache_get(key)):
-        return c
-    start = time.time()
-    pred = VariedadesPredictor().predict(payload)
-    metrics.track("variedades", time.time() - start)
-    result = {
-        "tipo": "variedades", "cultivo": req.cultivo,
-        "recomendacion_principal": pred["recomendacion_principal"],
-        "alternativas": pred["alternativas"],
-        "modelo_version": VariedadesPredictor.MODEL_VERSION
-    }
-    cache_set(key, result, TTL_BY_TYPE["variedades"])
-    return result
-
-@app.post("/api/v1/predicciones/clima")
-def prediccion_clima(req: ClimaRequest):
-    lat, lon = req.coords.latitud, req.coords.longitud
-    with get_db_cursor() as cur:
-        cur.execute("""
-            SELECT AVG((temperatura_max+temperatura_min)/2.0) AS temp_media,
-                   AVG(precipitacion) AS precip, AVG(humedad_relativa) AS humedad,
-                   AVG(velocidad_viento) AS viento, AVG(radiacion_solar) AS radiacion
-            FROM clima_historico
-            WHERE round(latitud::numeric,2)=round(%s::numeric,2)
-              AND round(longitud::numeric,2)=round(%s::numeric,2)
-              AND fecha >= CURRENT_DATE - INTERVAL '7 days'
-        """, (lat, lon))
-        row = cur.fetchone()
-
-    if not row or row.get("temp_media") is None:
-        return {"tipo": "clima", "periodo": req.periodo, "coords": req.coords,
-                "mensual": {"precipitacion_mm": 80.0, "temp_media_c": 18.0, "humedad": 65.0, "viento_kmh": 12.0, "horas_sol": 8.0}}
-    
-    return {"tipo": "clima", "periodo": req.periodo, "coords": req.coords,
-            "mensual": {
-                "precipitacion_mm": round(float(row.get("precip", 0)), 1),
-                "temp_media_c": round(float(row.get("temp_media", 0)), 1),
-                "humedad": round(float(row.get("humedad", 0)), 1),
-                "viento_kmh": round(float(row.get("viento", 0)), 1),
-                "horas_sol": round(float(row.get("radiacion", 6.0)), 1)
-            }}
-
-@app.post("/api/v1/optimizacion/fertilizacion")
-def optimizacion_fertilizacion(req: FertilizacionRequest):
-    mo = 2.0
-    if req.lote_id:
-        with get_db_cursor() as cur:
-            cur.execute("SELECT materia_organica FROM caracteristicas_suelo WHERE lote_id=%s ORDER BY id DESC LIMIT 1", (req.lote_id,))
-            r = cur.fetchone()
-            if r and r.get("materia_organica"):
-                mo = float(r["materia_organica"])
-
-    base = {"trigo": 120, "maiz": 140, "soja": 30, "cebada": 100}.get(req.cultivo, 100)
-    if mo > 2.5: base = int(base * 0.9)
-    if (req.objetivo or "") == "alto": base += 10
-    
-    plan = {"producto": "Urea", "dosis_kg_ha": base, "aplicaciones": [{"momento": "pre-siembra", "porcentaje": 70}, {"momento": "macollaje", "porcentaje": 30}]}
-    alts = [{"producto": "DAP", "dosis_kg_ha": int(base * 0.8)}, {"producto": "MAP", "dosis_kg_ha": int(base * 0.85)}]
-    costos = {"semillas": 85, "fertilizacion": round(base * 1.2, 0), "proteccion": 45}
-    costos["total"] = sum(costos.values())
-    return {"plan_principal": plan, "alternativas": alts, "costos": costos}
-
-@app.post("/api/v1/predicciones/rendimiento")
-def prediccion_rendimiento(req: RendimientoRequest):
-    mo, temp, pcp, lat, lon = 2.0, 18.0, 80.0, 0.0, 0.0
-    with get_db_cursor() as cur:
-        if req.lote_id:
-            cur.execute("SELECT latitud,longitud FROM lotes WHERE id=%s", (req.lote_id,))
-            lr = cur.fetchone()
-            if lr: lat, lon = lr["latitud"], lr["longitud"]
-            
-            cur.execute("SELECT materia_organica FROM caracteristicas_suelo WHERE lote_id=%s ORDER BY id DESC LIMIT 1", (req.lote_id,))
-            sr = cur.fetchone()
-            if sr and sr.get("materia_organica"): mo = float(sr["materia_organica"])
-
-        cur.execute("""
-            SELECT AVG((temperatura_max+temperatura_min)/2.0) AS temp_media, AVG(precipitacion) AS precip
-            FROM clima_historico
-            WHERE round(latitud::numeric,2)=round(%s::numeric,2)
-              AND round(longitud::numeric,2)=round(%s::numeric,2)
-              AND fecha >= CURRENT_DATE - INTERVAL '7 days'
-        """, (lat, lon))
-        cr = cur.fetchone()
-        if cr:
-            if cr.get("temp_media") is not None: temp = float(cr["temp_media"])
-            if cr.get("precip") is not None: pcp = float(cr["precip"])
-
-    start = time.time()
-    pred = RendimientoPredictor().predict(req.model_dump(), suelo_mo=mo, temp_media=temp, pp_mm=pcp)
-    metrics.track("rendimiento", time.time() - start)
-    return {"tipo": "rendimiento", "lote_id": req.lote_id, "cultivo": req.cultivo, "resultado": pred}
-
-@app.post("/api/v1/manejo/agroquimicos")
-def manejo_agroquimicos(req: AgroquimicosRequest):
-    return {"cronograma": [{"semana": 1, "producto": "Fungicida X"}, {"semana": 3, "producto": "Insecticida Y"}],
-            "condiciones_ideales": ["Viento < 15 km/h", "Sin lluvia 24h"]}
-
-@app.post("/api/v1/optimizacion/cosecha")
-def optimizacion_cosecha(req: CosechaRequest):
-    vent = {"trigo": ["2025-01-10", "2025-01-20"], "maiz": ["2025-03-01", "2025-03-15"], 
-            "soja": ["2025-04-10", "2025-04-25"], "cebada": ["2024-12-01", "2024-12-15"]}.get(req.cultivo, ["2025-01-10", "2025-01-20"])
-    return {"ventana_recomendada": vent, "riesgos": ["lluvias tardías"]}
-
-@app.post("/api/v1/acciones/aplicar")
-def aplicar_recomendacion(req: AplicarRequest):
-    return {"status": "ok"}
+    return {"ok": True}
