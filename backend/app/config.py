@@ -1,17 +1,16 @@
 import os
 
-class Config:
-    # Permite tanto DB_* como POSTGRES_* para evitar desalineos entre compose/código
-    DB_HOST = os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST", "db")
-    DB_PORT = int(os.getenv("DB_PORT") or os.getenv("POSTGRES_PORT", "5432"))
-    DB_NAME = os.getenv("DB_NAME") or os.getenv("POSTGRES_DB", "mlagrico")
-    DB_USER = os.getenv("DB_USER") or os.getenv("POSTGRES_USER", "ml_user")
-    DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("POSTGRES_PASSWORD", "ml_password")
+# Config simple, sin dependencias extra
+POSTGRES_DB: str = os.getenv("POSTGRES_DB", "mlagrico")
+POSTGRES_USER: str = os.getenv("POSTGRES_USER", "ml_user")
+POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "secret")
+# Dentro de docker, el host por defecto debe ser el nombre del servicio: "db"
+POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "db")
+POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
 
-    DATASOURCE = os.getenv("DATASOURCE", "postgres")  # 'postgres' | 'finnegans'
-    FIN_URL = os.getenv("FIN_URL", "")
-    FIN_API_KEY = os.getenv("FIN_API_KEY", "")
-
-    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "*")
-
-CFG = Config()
+# Pool y timeouts
+DB_POOL_MIN: int = int(os.getenv("DB_POOL_MIN", "1"))
+DB_POOL_MAX: int = int(os.getenv("DB_POOL_MAX", "10"))
+DB_CONN_TIMEOUT: int = int(os.getenv("DB_CONN_TIMEOUT", "5"))
+DB_STARTUP_MAX_RETRIES: int = int(os.getenv("DB_STARTUP_MAX_RETRIES", "30"))
+DB_STARTUP_BACKOFF_SECS: float = float(os.getenv("DB_STARTUP_BACKOFF_SECS", "1.0"))

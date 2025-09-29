@@ -1,49 +1,69 @@
 import time
-import psycopg2
 from contextlib import contextmanager
-from typing import Optional
-from app.config import CFG
+from typing import Generator, Optional
 
-_conn = None  # conexión perezosa única
+import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 
-def _connect_once() -> psycopg2.extensions.connection:
-    conn = psycopg2.connect(
-        dbname=CFG.DB_NAME,
-        user=CFG.DB_USER,
-        password=CFG.DB_PASSWORD,
-        host=CFG.DB_HOST,
-        port=CFG.DB_PORT,
+from .config import (
+    POSTGRES_DB,
+    POSTGRES_HOST,
+    POSTGRES_PASSWORD,
+    POSTGRES_PORT,
+    POSTGRES_USER,
+    DB_POOL_MIN,
+    DB_POOL_MAX,
+    DB_CONN_TIMEOUT,
+)
+
+_pool: Optional[SimpleConnectionPool] = None
+
+
+def _dsn() -> str:
+    # connect_timeout evita que uvicorn quede colgado si DB no responde
+    return (
+        f"dbname={POSTGRES_DB} "
+        f"user={POSTGRES_USER} "
+        f"password={POSTGRES_PASSWORD} "
+        f"host={POSTGRES_HOST} "
+        f"port={POSTGRES_PORT} "
+        f"connect_timeout={DB_CONN_TIMEOUT}"
     )
-    conn.autocommit = True
-    return conn
 
-def get_conn() -> psycopg2.extensions.connection:
-    """Conecta perezosamente con reintentos; evita caerse si DB aún no está o hay jitter."""
-    global _conn
-    if _conn is not None and not _conn.closed:
-        return _conn
 
-    last_err: Optional[Exception] = None
-    for _ in range(30):  # ~30s
-        try:
-            _conn = _connect_once()
-            # sanity check
-            with _conn.cursor() as cur:
-                cur.execute("SELECT 1;")
-                cur.fetchone()
-            return _conn
-        except Exception as e:
-            last_err = e
-            time.sleep(1)
+def init_pool() -> SimpleConnectionPool:
+    """
+    Crea el pool la primera vez que se usa. No tocar en import-time.
+    """
+    global _pool
+    if _pool is None:
+        _pool = SimpleConnectionPool(DB_POOL_MIN, DB_POOL_MAX, dsn=_dsn())
+    return _pool
 
-    raise last_err if last_err else RuntimeError("No se pudo conectar a Postgres")
 
 @contextmanager
-def get_db_cursor():
-    """Compat con código que espera un cursor por contexto."""
-    conn = get_conn()
-    cur = conn.cursor()
+def get_db_cursor() -> Generator:
+    """
+    Context manager para obtener cursor y hacer commit/cleanup seguro.
+    Uso:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT 1")
+    """
+    pool = init_pool()
+    conn = pool.getconn()
     try:
-        yield cur
+        with conn.cursor() as cur:
+            yield cur
+            conn.commit()
     finally:
-        cur.close()
+        pool.putconn(conn)
+
+
+def ping() -> None:
+    """
+    Lanza excepción si no puede ejecutar SELECT 1.
+    Útil para healthchecks o verificación en startup.
+    """
+    with get_db_cursor() as cur:
+        cur.execute("SELECT 1")
+        cur.fetchone()

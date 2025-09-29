@@ -3,42 +3,72 @@ version: "3.9"
 services:
   db:
     image: postgis/postgis:16-3.4
+    container_name: agro_db
     environment:
-      POSTGRES_DB: mlagrico
       POSTGRES_USER: ml_user
-      POSTGRES_PASSWORD: ml_password
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: mlagrico
+      # PGDATA: /var/lib/postgresql/data  # usa el default
     ports:
       - "5432:5432"
-    volumes:
-      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # ⚠️ Para evitar contraseñas "fantasma" de un volumen previo en dev, NO montamos volumen.
+    #    Si quieres persistencia, descomenta y asegúrate de borrar el volumen viejo:
+    # volumes:
+    #   - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ml_user -d mlagrico"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ml_user -d mlagrico -h localhost"]
+      interval: 2s
       timeout: 3s
-      retries: 20
+      retries: 15
+    restart: unless-stopped
 
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
+    container_name: agro_backend
     environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_NAME: mlagrico
-      DB_USER: ml_user
-      DB_PASSWORD: ml_password
-      DATASOURCE: postgres
-      CORS_ALLOWED_ORIGINS: http://localhost:8080,http://localhost
+      POSTGRES_USER: ml_user
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: mlagrico
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      # Ajustables
+      DB_POOL_MIN: "1"
+      DB_POOL_MAX: "10"
+      DB_CONN_TIMEOUT: "5"
+      DB_STARTUP_MAX_RETRIES: "30"
+      DB_STARTUP_BACKOFF_SECS: "1"
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend/webapp
+    image: nginx:1.27-alpine
+    container_name: agro_frontend
     depends_on:
       - backend
     ports:
       - "8080:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    # (Opcional) healthcheck simple
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+# volumes:
+#   pgdata:
+#     driver: local
