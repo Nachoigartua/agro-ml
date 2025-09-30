@@ -1,128 +1,142 @@
--- Enable useful extensions
+-- Agro ML Database Schema
+-- PostgreSQL con PostGIS
+
+-- Enable PostGIS extension
 CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Catalog tables
-CREATE TABLE IF NOT EXISTS campanas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre TEXT NOT NULL
+-- Tabla de predicciones
+CREATE TABLE IF NOT EXISTS predicciones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lote_id VARCHAR(100),
+    cliente_id VARCHAR(100),
+    tipo_prediccion VARCHAR(50) NOT NULL,
+    cultivo VARCHAR(50),
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+    fecha_validez_desde DATE,
+    fecha_validez_hasta DATE,
+    recomendacion_principal JSONB NOT NULL,
+    alternativas JSONB DEFAULT '[]'::jsonb,
+    nivel_confianza FLOAT CHECK (nivel_confianza >= 0 AND nivel_confianza <= 1),
+    datos_entrada JSONB,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS cultivos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre TEXT NOT NULL,
-  tipo TEXT
-);
+-- Índices para predicciones
+CREATE INDEX IF NOT EXISTS idx_predicciones_lote_id ON predicciones(lote_id);
+CREATE INDEX IF NOT EXISTS idx_predicciones_cliente_id ON predicciones(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_predicciones_tipo ON predicciones(tipo_prediccion);
+CREATE INDEX IF NOT EXISTS idx_predicciones_cultivo ON predicciones(cultivo);
+CREATE INDEX IF NOT EXISTS idx_predicciones_fecha ON predicciones(fecha_creacion DESC);
 
-CREATE TABLE IF NOT EXISTS lotes (
-  id UUID PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  latitud DOUBLE PRECISION NOT NULL,
-  longitud DOUBLE PRECISION NOT NULL,
-  hectareas DOUBLE PRECISION NOT NULL,
-  cultivo_id UUID NULL REFERENCES cultivos(id)
-);
-
--- Weather
+-- Tabla de datos climáticos históricos
 CREATE TABLE IF NOT EXISTS clima_historico (
-  id BIGSERIAL PRIMARY KEY,
-  latitud DOUBLE PRECISION NOT NULL,
-  longitud DOUBLE PRECISION NOT NULL,
-  fecha DATE NOT NULL,
-  temperatura_max DOUBLE PRECISION NOT NULL,
-  temperatura_min DOUBLE PRECISION NOT NULL,
-  precipitacion DOUBLE PRECISION NOT NULL,
-  humedad_relativa DOUBLE PRECISION NOT NULL,
-  velocidad_viento DOUBLE PRECISION NOT NULL,
-  radiacion_solar DOUBLE PRECISION NOT NULL
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    latitud FLOAT NOT NULL,
+    longitud FLOAT NOT NULL,
+    fecha DATE NOT NULL,
+    temperatura_max FLOAT,
+    temperatura_min FLOAT,
+    temperatura_media FLOAT,
+    precipitacion FLOAT,
+    humedad_relativa FLOAT,
+    radiacion_solar FLOAT,
+    velocidad_viento FLOAT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(latitud, longitud, fecha)
 );
 
--- Soil
-CREATE TABLE IF NOT EXISTS mediciones_suelo (
-  id BIGSERIAL PRIMARY KEY,
-  lote_id UUID NOT NULL,
-  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  materia_organica DOUBLE PRECISION NOT NULL,
-  ph DOUBLE PRECISION,
-  textura TEXT
+-- Índices para clima
+CREATE INDEX IF NOT EXISTS idx_clima_coords_fecha ON clima_historico(latitud, longitud, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_clima_fecha ON clima_historico(fecha DESC);
+
+-- Tabla de características de suelo
+CREATE TABLE IF NOT EXISTS caracteristicas_suelo (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lote_id VARCHAR(100) NOT NULL,
+    profundidad_cm INTEGER,
+    ph FLOAT,
+    materia_organica FLOAT,
+    nitrogeno FLOAT,
+    fosforo FLOAT,
+    potasio FLOAT,
+    textura VARCHAR(50),
+    capacidad_campo FLOAT,
+    conductividad_electrica FLOAT,
+    fecha_analisis TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Yields
-CREATE TABLE IF NOT EXISTS rendimientos (
-  id BIGSERIAL PRIMARY KEY,
-  lote_id UUID NOT NULL,
-  anio INT NOT NULL,
-  rendimiento_kg_ha INT NOT NULL
+-- Índices para suelo
+CREATE INDEX IF NOT EXISTS idx_suelo_lote ON caracteristicas_suelo(lote_id);
+CREATE INDEX IF NOT EXISTS idx_suelo_fecha ON caracteristicas_suelo(fecha_analisis DESC);
+
+-- Tabla de modelos ML (metadata)
+CREATE TABLE IF NOT EXISTS modelos_ml (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(100) NOT NULL,
+    version VARCHAR(20) NOT NULL,
+    tipo_modelo VARCHAR(50),
+    metricas_performance JSONB,
+    fecha_entrenamiento TIMESTAMP NOT NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(nombre, version)
 );
 
--- Seed data (idempotent)
-INSERT INTO campanas (id, nombre) VALUES
-  (gen_random_uuid(), 'Campaña 2024/25'),
-  (gen_random_uuid(), 'Campaña 2023/24')
-ON CONFLICT DO NOTHING;
+-- Índices para modelos
+CREATE INDEX IF NOT EXISTS idx_modelos_nombre ON modelos_ml(nombre);
+CREATE INDEX IF NOT EXISTS idx_modelos_activo ON modelos_ml(activo);
 
-INSERT INTO cultivos (id, nombre, tipo) VALUES
-  (gen_random_uuid(), 'Maíz', 'Grano'),
-  (gen_random_uuid(), 'Soja', 'Grano')
-ON CONFLICT DO NOTHING;
+-- Trigger para actualizar updated_at automáticamente
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
-INSERT INTO lotes (id, nombre, latitud, longitud, hectareas)
-VALUES
-  ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', 'Lote Norte', -34.6, -58.4, 75),
-  ('7bab8213-c0d8-4787-b588-41123834a886', 'Lote Sur',   -33.1, -60.6, 120),
-  ('11111111-2222-3333-4444-555555555555', 'Lote Este',  -34.9, -58.0, 50)
-ON CONFLICT (id) DO NOTHING;
+CREATE TRIGGER update_predicciones_updated_at BEFORE UPDATE ON predicciones
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Soil MO
-INSERT INTO mediciones_suelo (lote_id, fecha, materia_organica, ph, textura) VALUES
-  ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', CURRENT_DATE - INTERVAL '30 days', 2.5, 6.2, 'Franca'),
-  ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', CURRENT_DATE - INTERVAL '5 days',  2.8, 6.1, 'Franca'),
-  ('7bab8213-c0d8-4787-b588-41123834a886', CURRENT_DATE - INTERVAL '10 days', 3.4, 6.5, 'Franco-arenosa'),
-  ('11111111-2222-3333-4444-555555555555', CURRENT_DATE - INTERVAL '15 days', 1.9, 5.9, 'Arcillosa')
-ON CONFLICT DO NOTHING;
+CREATE TRIGGER update_suelo_updated_at BEFORE UPDATE ON caracteristicas_suelo
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Yields
-INSERT INTO rendimientos (lote_id, anio, rendimiento_kg_ha) VALUES
-  ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', 2023, 7200), ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', 2022, 6900), ('79f666dc-8b9b-4119-b7ec-dcf1beda53b1', 2021, 6500),
-  ('7bab8213-c0d8-4787-b588-41123834a886', 2023, 8000), ('7bab8213-c0d8-4787-b588-41123834a886', 2022, 7700), ('7bab8213-c0d8-4787-b588-41123834a886', 2021, 7900),
-  ('11111111-2222-3333-4444-555555555555', 2023, 6200), ('11111111-2222-3333-4444-555555555555', 2022, 6100), ('11111111-2222-3333-4444-555555555555', 2021, 6000)
-ON CONFLICT DO NOTHING;
+-- Insertar datos de ejemplo (opcional)
+-- Se pueden descomentar para tener datos iniciales
 
--- Weather data for three ubicaciones (10 días)
-INSERT INTO clima_historico (latitud, longitud, fecha, temperatura_max, temperatura_min, precipitacion, humedad_relativa, velocidad_viento, radiacion_solar)
-VALUES
-  -- -34.6, -58.4
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '0 day', 30, 16, 4.5, 70, 14, 20),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '1 day', 29, 15, 2.0, 64, 12, 18),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '2 day', 28, 14, 0.0, 55, 10, 16),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '3 day', 31, 17, 1.5, 62, 18, 22),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '4 day', 27, 13, 6.0, 75, 20, 19),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '5 day', 26, 12, 9.0, 82, 9,  15),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '6 day', 32, 17, 3.5, 66, 14, 23),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '7 day', 30, 16, 2.0, 60, 15, 21),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '8 day', 29, 15, 0.0, 58, 12, 18),
-  (-34.6, -58.4, CURRENT_DATE - INTERVAL '9 day', 28, 14, 1.0, 61, 11, 17),
+/*
+INSERT INTO caracteristicas_suelo (
+    lote_id, ph, materia_organica, nitrogeno, fosforo, potasio, 
+    textura, fecha_analisis
+) VALUES
+    ('lote-001', 6.5, 3.2, 22.0, 15.0, 220.0, 'franco', NOW() - INTERVAL '30 days'),
+    ('lote-002', 6.8, 2.9, 18.0, 12.0, 195.0, 'arcilloso', NOW() - INTERVAL '45 days'),
+    ('lote-003', 7.0, 3.5, 25.0, 18.0, 240.0, 'franco', NOW() - INTERVAL '20 days');
+*/
 
-  -- -33.1, -60.6
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '0 day', 31, 17, 5.0, 72, 16, 21),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '1 day', 30, 16, 1.0, 63, 14, 19),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '2 day', 27, 13, 0.0, 54, 9,  16),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '3 day', 32, 18, 2.5, 65, 20, 23),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '4 day', 26, 12, 7.0, 78, 18, 18),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '5 day', 25, 11, 8.5, 80, 10, 14),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '6 day', 30, 16, 4.0, 68, 13, 22),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '7 day', 29, 15, 2.5, 63, 16, 20),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '8 day', 28, 14, 1.0, 60, 12, 18),
-  (-33.1, -60.6, CURRENT_DATE - INTERVAL '9 day', 27, 13, 0.0, 58, 11, 16),
+-- View para estadísticas de predicciones
+CREATE OR REPLACE VIEW predicciones_stats AS
+SELECT 
+    tipo_prediccion,
+    cultivo,
+    COUNT(*) as total_predicciones,
+    AVG(nivel_confianza) as confianza_promedio,
+    DATE_TRUNC('month', fecha_creacion) as mes
+FROM predicciones
+GROUP BY tipo_prediccion, cultivo, DATE_TRUNC('month', fecha_creacion)
+ORDER BY mes DESC;
 
-  -- -34.9, -58.0
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '0 day', 29, 15, 3.0, 69, 12, 19),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '1 day', 28, 14, 2.0, 64, 10, 18),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '2 day', 27, 13, 0.0, 55, 8,  15),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '3 day', 30, 16, 1.0, 63, 14, 21),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '4 day', 26, 12, 5.5, 77, 16, 17),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '5 day', 25, 11, 7.5, 81, 9,  14),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '6 day', 31, 17, 2.0, 67, 13, 22),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '7 day', 29, 15, 1.5, 62, 15, 20),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '8 day', 28, 14, 0.0, 59, 11, 17),
-  (-34.9, -58.0, CURRENT_DATE - INTERVAL '9 day', 27, 13, 0.5, 60, 10, 16);
+-- Comentarios en las tablas
+COMMENT ON TABLE predicciones IS 'Almacena todas las predicciones generadas por los modelos ML';
+COMMENT ON TABLE clima_historico IS 'Datos climáticos históricos por ubicación';
+COMMENT ON TABLE caracteristicas_suelo IS 'Características del suelo por lote';
+COMMENT ON TABLE modelos_ml IS 'Metadata de los modelos de machine learning';
+
+-- Grant permissions (ajustar según necesidades)
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO agro_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO agro_user;

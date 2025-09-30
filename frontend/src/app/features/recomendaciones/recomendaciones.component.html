@@ -1,0 +1,188 @@
+<div class="container">
+  <div class="recomendaciones-header">
+    <h1>Recomendaciones ML</h1>
+    <p class="text-muted">Genera recomendaciones inteligentes basadas en Machine Learning</p>
+  </div>
+
+  <div class="recomendaciones-content">
+    <!-- Formulario -->
+    <div class="card form-card">
+      <h3>Generar Predicción</h3>
+      
+      <form [formGroup]="predictionForm" (ngSubmit)="onSubmit()">
+        <!-- Tipo de Predicción -->
+        <div class="form-group">
+          <label class="form-label">Tipo de Predicción</label>
+          <select 
+            class="form-control" 
+            formControlName="predictionType"
+            (change)="onPredictionTypeChange()">
+            <option *ngFor="let type of predictionTypes" [value]="type.value">
+              {{ type.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Campos comunes (excepto para clima) -->
+        <ng-container *ngIf="selectedPredictionType !== 'clima'">
+          <div class="form-group">
+            <label class="form-label">Lote</label>
+            <select class="form-control" formControlName="loteId">
+              <option *ngFor="let lote of lotes" [value]="lote.id">
+                {{ lote.nombre }} ({{ lote.superficie_ha }} ha)
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Cliente ID</label>
+            <input type="text" class="form-control" formControlName="clienteId">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Cultivo</label>
+            <select class="form-control" formControlName="cultivo">
+              <option *ngFor="let cultivo of cultivos" [value]="cultivo">
+                {{ cultivo | titlecase }}
+              </option>
+            </select>
+          </div>
+        </ng-container>
+
+        <!-- Campos específicos por tipo -->
+        <div [ngSwitch]="selectedPredictionType">
+          <!-- Siembra -->
+          <div *ngSwitchCase="'siembra'">
+            <div class="form-group">
+              <label class="form-label">Campaña</label>
+              <input type="text" class="form-control" formControlName="campana" placeholder="2024/2025">
+            </div>
+          </div>
+
+          <!-- Rendimiento -->
+          <div *ngSwitchCase="'rendimiento'">
+            <div class="form-group">
+              <label class="form-label">Fecha de Siembra</label>
+              <input type="date" class="form-control" formControlName="fechaSiembra">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Variedad (Opcional)</label>
+              <input type="text" class="form-control" formControlName="variedad" placeholder="Ej: DM 4670">
+            </div>
+          </div>
+
+          <!-- Fertilización -->
+          <div *ngSwitchCase="'fertilizacion'">
+            <div class="form-group">
+              <label class="form-label">Objetivo de Rendimiento (kg/ha) - Opcional</label>
+              <input type="number" class="form-control" formControlName="objetivoRendimiento" placeholder="3500">
+            </div>
+          </div>
+
+          <!-- Clima -->
+          <div *ngSwitchCase="'clima'">
+            <div class="form-group">
+              <label class="form-label">Latitud</label>
+              <input type="number" class="form-control" formControlName="latitud" step="0.000001" placeholder="-34.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Longitud</label>
+              <input type="number" class="form-control" formControlName="longitud" step="0.000001" placeholder="-58.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fecha Desde</label>
+              <input type="date" class="form-control" formControlName="fechaDesde">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fecha Hasta</label>
+              <input type="date" class="form-control" formControlName="fechaHasta">
+            </div>
+          </div>
+
+          <!-- Cosecha -->
+          <div *ngSwitchCase="'cosecha'">
+            <div class="form-group">
+              <label class="form-label">Fecha de Siembra</label>
+              <input type="date" class="form-control" formControlName="fechaSiembra">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Variedad (Opcional)</label>
+              <input type="text" class="form-control" formControlName="variedad" placeholder="Ej: Klein Dragón">
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" [disabled]="isLoading || predictionForm.invalid">
+          <span *ngIf="!isLoading">Generar Predicción</span>
+          <span *ngIf="isLoading">
+            <span class="loading"></span> Generando...
+          </span>
+        </button>
+      </form>
+    </div>
+
+    <!-- Resultados -->
+    <div class="results-section" *ngIf="result || error || isLoading">
+      <!-- Loading -->
+      <div class="card text-center" *ngIf="isLoading">
+        <div class="loading-container">
+          <div class="loading"></div>
+          <p class="mt-2">Generando predicción...</p>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="alert alert-error" *ngIf="error && !isLoading">
+        <strong>Error:</strong> {{ error }}
+      </div>
+
+      <!-- Resultado -->
+      <div class="card result-card" *ngIf="result && !isLoading">
+        <div class="result-header">
+          <h3>{{ result.tipo_prediccion | titlecase }}</h3>
+          <div class="confidence-badge" [class]="getConfidenceClass(result.nivel_confianza)">
+            <span class="confidence-label">Confianza:</span>
+            <span class="confidence-value">{{ result.nivel_confianza * 100 | number:'1.0-0' }}%</span>
+            <span class="confidence-text">({{ getConfidenceLabel(result.nivel_confianza) }})</span>
+          </div>
+        </div>
+
+        <!-- Recomendación Principal -->
+        <div class="recommendation-main">
+          <h4>Recomendación Principal</h4>
+          <div class="recommendation-content">
+            <pre>{{ result.recomendacion_principal | json }}</pre>
+          </div>
+        </div>
+
+        <!-- Alternativas -->
+        <div class="alternatives" *ngIf="result.alternativas && result.alternativas.length > 0">
+          <h4>Alternativas</h4>
+          <div class="alternative-item" *ngFor="let alt of result.alternativas">
+            <pre>{{ alt | json }}</pre>
+          </div>
+        </div>
+
+        <!-- Factores Considerados -->
+        <div class="factors">
+          <h4>Factores Considerados</h4>
+          <ul>
+            <li *ngFor="let factor of result.factores_considerados">{{ factor }}</li>
+          </ul>
+        </div>
+
+        <!-- Metadata -->
+        <div class="metadata" *ngIf="result.metadata">
+          <h4>Información Adicional</h4>
+          <pre>{{ result.metadata | json }}</pre>
+        </div>
+
+        <div class="result-footer">
+          <small class="text-muted">
+            Generado el: {{ result.fecha_generacion | date:'medium' }}
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,88 @@
+<div class="container">
+  <div class="dashboard-header">
+    <h1>Dashboard - Estado del Sistema</h1>
+    <p class="text-muted">Monitoreo de modelos de Machine Learning</p>
+  </div>
+
+  <!-- Sistema de Salud -->
+  <div class="card" *ngIf="healthStatus">
+    <h3>Estado del Sistema</h3>
+    <div class="health-status">
+      <div class="status-item">
+        <span class="label">Estado:</span>
+        <span class="badge badge-success">{{ healthStatus.status }}</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Ambiente:</span>
+        <span class="badge badge-info">{{ healthStatus.environment }}</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Datos Mock:</span>
+        <span class="badge" [class.badge-warning]="healthStatus.use_mock_data" [class.badge-success]="!healthStatus.use_mock_data">
+          {{ healthStatus.use_mock_data ? 'Activo' : 'Desactivo' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado de Carga -->
+  <div class="card text-center" *ngIf="isLoading">
+    <div class="loading-container">
+      <div class="loading"></div>
+      <p class="mt-2">Cargando estado de modelos...</p>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="alert alert-error" *ngIf="error && !isLoading">
+    <strong>Error:</strong> {{ error }}
+    <button class="btn btn-secondary" (click)="loadDashboardData()">Reintentar</button>
+  </div>
+
+  <!-- Estado de Modelos -->
+  <div class="models-grid" *ngIf="!isLoading && modelsStatus">
+    <div class="card model-card" *ngFor="let modelName of getModelsList()">
+      <div class="model-header">
+        <h4>{{ modelName | titlecase }}</h4>
+        <span class="status-badge" [class]="getModelStatusClass(getModelInfo(modelName))">
+          {{ getModelStatusText(getModelInfo(modelName)) }}
+        </span>
+      </div>
+
+      <div class="model-info">
+        <div class="info-row" *ngIf="getModelInfo(modelName).metadata?.trained_at">
+          <span class="label">Entrenado:</span>
+          <span class="value">{{ getModelInfo(modelName).metadata.trained_at | date:'short' }}</span>
+        </div>
+        <div class="info-row" *ngIf="getModelInfo(modelName).metadata?.version">
+          <span class="label">Versión:</span>
+          <span class="value">{{ getModelInfo(modelName).metadata.version }}</span>
+        </div>
+        <div class="info-row" *ngIf="getModelInfo(modelName).metadata?.metrics">
+          <span class="label">Métricas:</span>
+          <div class="metrics">
+            <span *ngFor="let metric of getModelInfo(modelName).metadata.metrics | keyvalue" class="metric-item">
+              {{ metric.key }}: {{ metric.value | number:'1.2-2' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="model-actions">
+        <button class="btn btn-primary" (click)="trainModel(modelName)">
+          Entrenar Modelo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cache Status -->
+  <div class="card" *ngIf="modelsStatus">
+    <h3>Estado de Cache</h3>
+    <div class="cache-status">
+      <span class="badge" [class.badge-success]="modelsStatus.cache_connected" [class.badge-error]="!modelsStatus.cache_connected">
+        {{ modelsStatus.cache_connected ? 'Redis Conectado' : 'Redis Desconectado' }}
+      </span>
+    </div>
+  </div>
+</div>

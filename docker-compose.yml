@@ -1,0 +1,109 @@
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: agro-ml-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agro_ml}
+      POSTGRES_USER: ${POSTGRES_USER:-agro_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agro_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agro_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agro-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: agro-ml-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - agro-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agro-ml-backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agro_user}:${POSTGRES_PASSWORD:-agro_password}@postgres:5432/${POSTGRES_DB:-agro_ml}
+      REDIS_URL: redis://redis:6379
+      API_KEY: ${API_KEY:-dev-local-key}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      FINNEGANS_API_URL: ${FINNEGANS_API_URL:-http://finnegans-mock:8001}
+      FINNEGANS_API_KEY: ${FINNEGANS_API_KEY:-mock-key}
+      USE_MOCK_DATA: ${USE_MOCK_DATA:-true}
+      ML_MODELS_PATH: ${ML_MODELS_PATH:-/app/ml_models}
+      PREDICTION_CACHE_TTL_HOURS: ${PREDICTION_CACHE_TTL_HOURS:-24}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - ml_models:/app/ml_models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agro-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        API_URL: ${API_URL:-http://localhost:8080}
+    container_name: agro-ml-frontend
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+    depends_on:
+      - backend
+    networks:
+      - agro-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: agro-ml-nginx
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - agro-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  ml_models:
+
+networks:
+  agro-network:
+    driver: bridge

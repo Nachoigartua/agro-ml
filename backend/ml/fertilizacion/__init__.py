@@ -1,0 +1,1 @@
+"""Fertilizacion ML model package"""

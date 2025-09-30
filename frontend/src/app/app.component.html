@@ -1,0 +1,25 @@
+<div class="app-container">
+  <header class="app-header">
+    <div class="container">
+      <div class="header-content">
+        <h1 class="logo">
+          🌾 Agro ML
+        </h1>
+        <nav class="main-nav">
+          <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+          <a routerLink="/recomendaciones" routerLinkActive="active">Recomendaciones</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <router-outlet></router-outlet>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container">
+      <p>&copy; 2024 Agro ML. Todos los derechos reservados.</p>
+    </div>
+  </footer>
+</div>
