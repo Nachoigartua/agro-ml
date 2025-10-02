@@ -14,7 +14,8 @@ services:
       - postgres
     volumes:
       - ./models:/app/models
-
+      - ./backend/api:/app
+      
   postgres:
     image: postgis/postgis:13-3.1
     environment:
