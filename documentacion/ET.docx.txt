@@ -1,0 +1,961 @@
+﻿Especificación Técnica - Sistema de Machine Learning para Optimización Agrícola
+1. Arquitectura General del Sistema
+1.1 Arquitectura de Alto Nivel
+┌─────────────────────────────────────────────────────────────┐
+│                    Sistema Principal                         │
+│  ┌─────────────────┐    ┌────────────────────────────────┐  │
+│  │   Frontend      │    │         Backend               │  │
+│  │   Angular       │◄──►│      APIs Existentes          │  │
+│  │                 │    │                               │  │
+│  │  ┌───────────┐  │    │                               │  │
+│  │  │  iframe   │  │    │                               │  │
+│  │  │ ML Module │◄─┼────┼─┐                             │  │
+│  │  └───────────┘  │    │ │                             │  │
+│  └─────────────────┘    └─┼─────────────────────────────┘  │
+└──────────────────────────┼─────────────────────────────────┘
+                           │
+┌──────────────────────────▼─────────────────────────────────┐
+│              Módulo ML Agrícola                            │
+│  ┌─────────────────┐    ┌────────────────────────────────┐│
+│  │   Frontend      │    │           Backend              ││
+│  │   Angular       │◄──►│                               ││
+│  │                 │    │  ┌─────────────────────────┐   ││
+│  │                 │    │  │    ML Engine            │   ││
+│  │                 │    │  │  ┌─────────────────────┐│   ││
+│  │                 │    │  │  │  Modelos Locales    ││   ││
+│  │                 │    │  │  └─────────────────────┘│   ││
+│  │                 │    │  └─────────────────────────┘   ││
+│  │                 │    │                               ││
+│  │                 │    │  ┌─────────────────────────┐   ││
+│  │                 │    │  │ Integración de Datos    │   ││
+│  │                 │    │  │ • API Sistema Principal │   ││
+│  │                 │    │  │ • Datasets Externos     │   ││
+│  │                 │    │  └─────────────────────────┘   ││
+│  └─────────────────┘    └────────────────────────────────┘│
+└────────────────────────────────────────────────────────────┘
+1.2 Componentes Principales
+* Frontend Angular: Interfaz de usuario integrada como iframe
+* API Gateway: Capa de comunicación con sistema principal
+* ML Engine: Motor de procesamiento de modelos
+* Data Integration Layer: Capa de integración de datos
+* Model Management: Gestión y versionado de modelos
+* Cache Layer: Caché para optimizar consultas
+2. Stack Tecnológico
+2.1 Frontend
+* Framework: Angular 15+ (compatible con componentes empresa)
+* UI Components: Librería de componentes proporcionada por la empresa
+* State Management: NgRx para manejo de estado complejo
+* Charting: Chart.js o D3.js para visualizaciones
+* Maps: Leaflet para visualización geográfica
+2.2 Backend
+* Runtime: Python 3.9+
+* Framework: FastAPI para APIs REST
+* ML Framework:
+   * Scikit-learn para modelos tradicionales
+   * XGBoost/LightGBM para modelos de ensemble
+   * TensorFlow/PyTorch para modelos deep learning (si necesario)
+* Data Processing: Pandas, NumPy, Geopandas
+* Database: PostgreSQL con extensión PostGIS
+* Cache: Redis para caché de predicciones
+2.3 Infraestructura
+* Contenedores: Docker para despliegue
+* Orquestación: Docker Compose para desarrollo local
+* Proxy: Nginx como reverse proxy
+* Monitoreo: Logging estructurado con Python Logging
+3. Arquitectura de Datos
+3.1 Fuentes de Datos
+3.1.1 Datos del Sistema Principal (vía API)
+python
+# Estructura de datos esperada
+{
+    "lotes": {
+        "id": "uuid",
+        "cliente_id": "uuid", 
+        "coordenadas": "polygon",
+        "superficie_ha": "float",
+        "caracteristicas_suelo": "json"
+    },
+    "ordenes_trabajo": {
+        "id": "uuid",
+        "lote_id": "uuid",
+        "tipo_labor": "string",
+        "fecha": "datetime",
+        "insumos": "json",
+        "dosis": "float"
+    },
+    "cosechas": {
+        "id": "uuid", 
+        "lote_id": "uuid",
+        "cultivo": "string",
+        "fecha": "datetime",
+        "cantidad_cosechada": "float",
+        "calidad": "json"
+    }
+}
+3.1.2 Datasets Externos
+* Datos Climáticos:
+   * Temperatura máxima/mínima diaria
+   * Precipitaciones diarias
+   * Humedad relativa
+   * Radiación solar
+   * Velocidad del viento
+* Datos de Suelo:
+   * Mapas de suelo públicos (INTA, RIAN)
+   * Clasificación taxonómica
+   * Propiedades físico-químicas
+* Datos Satelitales (opcional):
+   * Índices de vegetación (NDVI, EVI)
+   * Humedad del suelo
+3.2 Esquema de Base de Datos
+sql
+-- Tabla principal de predicciones
+CREATE TABLE predicciones (
+    id UUID PRIMARY KEY,
+    lote_id UUID NOT NULL,
+    cliente_id UUID NOT NULL,
+    tipo_prediccion VARCHAR(50) NOT NULL,
+    cultivo VARCHAR(50),
+    fecha_creacion TIMESTAMP,
+    fecha_validez_desde DATE,
+    fecha_validez_hasta DATE,
+    recomendacion_principal JSONB,
+    alternativas JSONB,
+    nivel_confianza FLOAT,
+    datos_entrada JSONB,
+    modelo_version VARCHAR(20)
+);
+
+
+-- Tabla de datos climáticos históricos
+CREATE TABLE clima_historico (
+    id UUID PRIMARY KEY,
+    latitud FLOAT,
+    longitud FLOAT,
+    fecha DATE,
+    temperatura_max FLOAT,
+    temperatura_min FLOAT,
+    precipitacion FLOAT,
+    humedad_relativa FLOAT,
+    radiacion_solar FLOAT,
+    velocidad_viento FLOAT
+);
+
+
+-- Tabla de características de suelo
+CREATE TABLE caracteristicas_suelo (
+    id UUID PRIMARY KEY,
+    lote_id UUID,
+    profundidad_cm INTEGER,
+    ph FLOAT,
+    materia_organica FLOAT,
+    nitrogeno FLOAT,
+    fosforo FLOAT,
+    potasio FLOAT,
+    textura VARCHAR(50),
+    capacidad_campo FLOAT
+);
+
+
+-- Tabla de modelos y versiones
+CREATE TABLE modelos_ml (
+    id UUID PRIMARY KEY,
+    nombre VARCHAR(100),
+    version VARCHAR(20),
+    tipo_modelo VARCHAR(50),
+    archivo_modelo BYTEA,
+    metricas_performance JSONB,
+    fecha_entrenamiento TIMESTAMP,
+    activo BOOLEAN DEFAULT TRUE
+);
+4. Modelos de Machine Learning
+4.1 Arquitectura de Modelos
+4.1.1 Modelo de Fechas Óptimas de Siembra
+python
+# Características de entrada
+features = [
+    'latitud', 'longitud',
+    'temp_media_marzo', 'temp_media_abril', 'temp_media_mayo',
+    'precipitacion_marzo', 'precipitacion_abril', 'precipitacion_mayo',
+    'tipo_suelo', 'ph_suelo', 'materia_organica',
+    'cultivo_anterior', 'rendimiento_anterior',
+    'dia_del_año'  # variable objetivo a predecir
+]
+
+
+# Algoritmo: Random Forest Regressor
+model_siembra = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=15,
+    min_samples_split=10
+)
+4.1.2 Modelo de Selección de Variedades
+python
+# Características de entrada
+features = [
+    'zona_agroclimática', 'tipo_suelo', 'disponibilidad_agua',
+    'objetivo_productivo', 'historial_enfermedades',
+    'temperatura_media_ciclo', 'precipitacion_esperada_ciclo'
+]
+
+
+# Algoritmo: XGBoost Classifier
+model_variedades = XGBClassifier(
+    n_estimators=200,
+    max_depth=8,
+    learning_rate=0.1
+)
+4.1.3 Modelo de Predicción Climática
+python
+# Modelo de series temporales para clima
+# Características: ventana móvil de 30 días históricos
+features = [
+    'temp_lag_1', 'temp_lag_2', ..., 'temp_lag_30',
+    'precip_lag_1', 'precip_lag_2', ..., 'precip_lag_30',
+    'mes', 'dia_del_año', 'tendencia_estacional'
+]
+
+
+# Algoritmo: LSTM o ARIMA según performance
+4.1.4 Modelo de Optimización de Fertilización
+python
+# Características de entrada
+features = [
+    'analisis_suelo_n', 'analisis_suelo_p', 'analisis_suelo_k',
+    'cultivo', 'objetivo_rendimiento', 
+    'precipitacion_esperada', 'temperatura_media',
+    'materia_organica', 'ph_suelo'
+]
+
+
+# Algoritmo: Multi-output Regressor
+model_fertilizacion = MultiOutputRegressor(
+    XGBRegressor(n_estimators=150)
+)
+4.1.5 Modelo de Predicción de Rendimientos
+python
+# Características de entrada
+features = [
+    'cultivo', 'variedad', 'fecha_siembra',
+    'fertilizacion_n', 'fertilizacion_p', 'fertilizacion_k',
+    'precipitacion_ciclo', 'temperatura_media_ciclo',
+    'tipo_suelo', 'materia_organica', 'ph',
+    'historial_rendimientos', 'indice_stress_hidrico'
+]
+
+
+# Algoritmo: Gradient Boosting
+model_rendimiento = GradientBoostingRegressor(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=10
+)
+4.2 Pipeline de Entrenamiento
+python
+class MLPipeline:
+    def __init__(self):
+        self.preprocessor = self._build_preprocessor()
+        self.models = {}
+        
+    def _build_preprocessor(self):
+        numeric_features = ['temperatura', 'precipitacion', 'ph']
+        categorical_features = ['cultivo', 'tipo_suelo']
+        
+        preprocessor = ColumnTransformer([
+            ('num', StandardScaler(), numeric_features),
+            ('cat', OneHotEncoder(drop='first'), categorical_features)
+        ])
+        
+        return preprocessor
+        
+    def train_model(self, model_name, X, y):
+        # Dividir datos
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+        
+        # Preprocesar
+        X_train_processed = self.preprocessor.fit_transform(X_train)
+        X_test_processed = self.preprocessor.transform(X_test)
+        
+        # Entrenar modelo
+        model = self._get_model(model_name)
+        model.fit(X_train_processed, y_train)
+        
+        # Evaluar
+        predictions = model.predict(X_test_processed)
+        metrics = self._calculate_metrics(y_test, predictions)
+        
+        # Guardar modelo
+        self.models[model_name] = {
+            'model': model,
+            'preprocessor': self.preprocessor,
+            'metrics': metrics
+        }
+        
+        return metrics
+5. APIs y Endpoints
+5.1 API de Recomendaciones
+python
+# FastAPI endpoints
+@app.post("/api/v1/recomendaciones/siembra")
+async def get_recomendaciones_siembra(request: SiembraRequest):
+    """
+    Genera recomendaciones de fechas óptimas de siembra
+    """
+    return {
+        "lote_id": request.lote_id,
+        "cultivo": request.cultivo,
+        "recomendacion_principal": {
+            "fecha_optima": "2024-04-15",
+            "ventana": ["2024-04-10", "2024-04-20"],
+            "confianza": 0.85
+        },
+        "alternativas": [
+            {
+                "fecha": "2024-04-25",
+                "pros": ["Mayor humedad esperada"],
+                "contras": ["Riesgo de heladas tardías"],
+                "confianza": 0.72
+            }
+        ]
+    }
+
+
+@app.post("/api/v1/recomendaciones/variedades")
+async def get_recomendaciones_variedades(request: VariedadRequest):
+    """
+    Recomienda variedades de semillas por lote
+    """
+    pass
+
+
+@app.post("/api/v1/predicciones/clima")
+async def get_predicciones_clima(request: ClimaRequest):
+    """
+    Proporciona predicciones climáticas
+    """
+    pass
+
+
+@app.post("/api/v1/recomendaciones/fertilizacion")
+async def get_recomendaciones_fertilizacion(request: FertilizacionRequest):
+    """
+    Genera plan de fertilización optimizado
+    """
+    pass
+
+
+@app.post("/api/v1/predicciones/rendimiento")
+async def get_predicciones_rendimiento(request: RendimientoRequest):
+    """
+    Predice rendimientos esperados
+    """
+    pass
+5.2 Modelos de Datos de API
+python
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+
+
+class SiembraRequest(BaseModel):
+    lote_id: str
+    cliente_id: str
+    cultivo: str
+    campana: str
+    fecha_consulta: datetime
+
+
+class RecomendacionResponse(BaseModel):
+    lote_id: str
+    tipo_recomendacion: str
+    recomendacion_principal: dict
+    alternativas: List[dict]
+    nivel_confianza: float
+    factores_considerados: List[str]
+    costos_estimados: dict
+    fecha_generacion: datetime
+6. Integración con Sistema Principal
+6.1 Autenticación y Autorización
+python
+# Middleware de autenticación
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    # Validar token del sistema principal
+    token = request.headers.get("Authorization")
+    user_info = await validate_token_with_main_system(token)
+    request.state.user = user_info
+    return await call_next(request)
+6.2 Cliente API para Sistema Principal
+python
+class MainSystemAPIClient:
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url
+        self.api_key = api_key
+        
+    async def get_lote_data(self, lote_id: str):
+        """Obtiene datos del lote desde sistema principal"""
+        pass
+        
+    async def get_ordenes_trabajo(self, lote_id: str, fecha_desde: str):
+        """Obtiene órdenes de trabajo históricas"""
+        pass
+        
+    async def get_cosechas_historicas(self, lote_id: str):
+        """Obtiene datos de cosechas históricas"""
+        pass
+7. Procesamiento y Caché
+7.1 Sistema de Caché
+python
+import redis
+import json
+from datetime import timedelta
+
+
+class CacheManager:
+    def __init__(self):
+        self.redis_client = redis.Redis(host='localhost', port=6379, db=0)
+        
+    def get_cached_prediction(self, cache_key: str):
+        """Obtiene predicción desde caché"""
+        cached = self.redis_client.get(cache_key)
+        return json.loads(cached) if cached else None
+        
+    def cache_prediction(self, cache_key: str, prediction: dict, ttl_hours: int = 24):
+        """Guarda predicción en caché"""
+        self.redis_client.setex(
+            cache_key, 
+            timedelta(hours=ttl_hours), 
+            json.dumps(prediction)
+        )
+7.2 Procesamiento Asíncrono
+python
+from celery import Celery
+
+
+# Para cálculos pesados que pueden ejecutarse en background
+celery_app = Celery('ml_agro')
+
+
+@celery_app.task
+def process_batch_predictions(lote_ids: List[str]):
+    """Procesa predicciones en lote"""
+    for lote_id in lote_ids:
+        # Generar predicciones para el lote
+        pass
+
+
+@celery_app.task  
+def retrain_models():
+    """Reentrenamiento periódico de modelos"""
+    pass
+8. Monitoreo y Logging
+8.1 Sistema de Logging
+python
+import logging
+import structlog
+
+
+# Configuración de logging estructurado
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+
+logger = structlog.get_logger()
+
+
+# Uso en endpoints
+@app.post("/api/v1/recomendaciones/siembra")
+async def get_recomendaciones_siembra(request: SiembraRequest):
+    logger.info("Generando recomendación de siembra", 
+                lote_id=request.lote_id, 
+                cultivo=request.cultivo)
+    # ... lógica del endpoint
+8.2 Métricas de Performance
+python
+class MLMetrics:
+    def __init__(self):
+        self.metrics = {}
+        
+    def track_prediction_time(self, model_name: str, execution_time: float):
+        """Rastrea tiempo de ejecución de predicciones"""
+        if model_name not in self.metrics:
+            self.metrics[model_name] = []
+        self.metrics[model_name].append(execution_time)
+        
+    def track_model_accuracy(self, model_name: str, accuracy: float):
+        """Rastrea precisión de modelos"""
+        pass
+        
+    def get_performance_report(self):
+        """Genera reporte de performance"""
+        return self.metrics
+9. Despliegue y DevOps
+9.1 Dockerfile
+dockerfile
+# Backend ML
+FROM python:3.9-slim
+
+
+WORKDIR /app
+
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Copiar requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+# Copiar código fuente
+COPY . .
+
+
+# Comando por defecto
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+dockerfile
+# Frontend Angular
+FROM node:16-alpine as build
+
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+
+COPY . .
+RUN npm run build --prod
+
+
+FROM nginx:alpine
+COPY --from=build /app/dist/* /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/nginx.conf
+9.2 Docker Compose
+yaml
+version: '3.8'
+
+
+services:
+  ml-backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/ml_agro
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./models:/app/models
+
+
+  ml-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "4200:80"
+    depends_on:
+      - ml-backend
+
+
+  postgres:
+    image: postgis/postgis:13-3.1
+    environment:
+      - POSTGRES_DB=ml_agro
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - ml-frontend
+      - ml-backend
+
+
+volumes:
+  postgres_data:
+9.3 Scripts de Despliegue
+bash
+#!/bin/bash
+# deploy.sh
+
+
+echo "Iniciando despliegue del sistema ML Agro..."
+
+
+# Construir imágenes
+docker-compose build
+
+
+# Ejecutar migraciones de base de datos
+docker-compose run --rm ml-backend python manage.py migrate
+
+
+# Cargar modelos pre-entrenados
+docker-compose run --rm ml-backend python load_models.py
+
+
+# Iniciar servicios
+docker-compose up -d
+
+
+echo "Despliegue completado exitosamente"
+10. Seguridad
+10.1 Autenticación y Autorización
+python
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer
+
+
+security = HTTPBearer()
+
+
+async def verify_token(token: str = Depends(security)):
+    """Verifica token con sistema principal"""
+    try:
+        # Validar token con API del sistema principal
+        response = await main_system_client.validate_token(token.credentials)
+        if not response.get('valid'):
+            raise HTTPException(status_code=401, detail="Token inválido")
+        return response.get('user_info')
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Error de autenticación")
+
+
+@app.get("/api/v1/protected-endpoint")
+async def protected_endpoint(user=Depends(verify_token)):
+    return {"message": "Acceso autorizado", "user": user}
+10.2 Validación de Datos
+python
+from pydantic import BaseModel, validator
+from typing import List
+
+
+class SiembraRequest(BaseModel):
+    lote_id: str
+    cliente_id: str
+    cultivo: str
+    
+    @validator('cultivo')
+    def validate_cultivo(cls, v):
+        allowed_cultivos = ['trigo', 'soja', 'maiz', 'cebada']
+        if v.lower() not in allowed_cultivos:
+            raise ValueError(f'Cultivo debe ser uno de: {allowed_cultivos}')
+        return v.lower()
+    
+    @validator('lote_id')
+    def validate_lote_id(cls, v):
+        # Validar formato UUID
+        import uuid
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise ValueError('lote_id debe ser un UUID válido')
+        return v
+10.3 Rate Limiting
+python
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.post("/api/v1/recomendaciones/siembra")
+@limiter.limit("10/minute")
+async def get_recomendaciones_siembra(request: Request, data: SiembraRequest):
+    # Endpoint limitado a 10 requests por minuto
+    pass
+11. Testing
+11.1 Tests Unitarios
+python
+import pytest
+from unittest.mock import Mock, patch
+from app.models.ml_models import SiembraPredictor
+
+
+class TestSiembraPredictor:
+    def setup_method(self):
+        self.predictor = SiembraPredictor()
+        
+    def test_predict_fecha_siembra_valid_input(self):
+        # Datos de entrada válidos
+        input_data = {
+            'latitud': -34.5,
+            'longitud': -58.5,
+            'cultivo': 'trigo',
+            'tipo_suelo': 'franco'
+        }
+        
+        result = self.predictor.predict(input_data)
+        
+        assert 'fecha_optima' in result
+        assert 'confianza' in result
+        assert 0 <= result['confianza'] <= 1
+        
+    def test_predict_fecha_siembra_invalid_input(self):
+        # Datos de entrada inválidos
+        input_data = {
+            'latitud': 200,  # Latitud inválida
+            'cultivo': 'cultivo_inexistente'
+        }
+        
+        with pytest.raises(ValueError):
+            self.predictor.predict(input_data)
+
+
+@pytest.fixture
+def client():
+    from app.main import app
+    from fastapi.testclient import TestClient
+    return TestClient(app)
+
+
+def test_siembra_endpoint(client):
+    response = client.post("/api/v1/recomendaciones/siembra", json={
+        "lote_id": "123e4567-e89b-12d3-a456-426614174000",
+        "cliente_id": "123e4567-e89b-12d3-a456-426614174001", 
+        "cultivo": "trigo"
+    })
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "recomendacion_principal" in data
+    assert "alternativas" in data
+11.2 Tests de Integración
+python
+class TestAPIIntegration:
+    def test_full_prediction_workflow(self):
+        # Test del flujo completo de predicción
+        # 1. Autenticación
+        # 2. Obtención de datos del lote
+        # 3. Generación de predicción
+        # 4. Almacenamiento en caché
+        # 5. Respuesta al usuario
+        pass
+        
+    def test_main_system_integration(self):
+        # Test de integración con sistema principal
+        pass
+11.3 Tests de Performance
+python
+import time
+import pytest
+
+
+class TestPerformance:
+    def test_prediction_response_time(self):
+        """Test que las predicciones respondan en menos de 30 segundos"""
+        start_time = time.time()
+        
+        # Ejecutar predicción
+        result = self.predictor.predict(sample_data)
+        
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        assert execution_time < 30, f"Predicción tomó {execution_time}s, máximo permitido: 30s"
+        
+    def test_concurrent_predictions(self):
+        """Test de carga con múltiples predicciones concurrentes"""
+        import concurrent.futures
+        
+        def make_prediction():
+            return self.predictor.predict(sample_data)
+            
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(make_prediction) for _ in range(100)]
+            results = [future.result() for future in futures]
+            
+        assert len(results) == 100
+        assert all(result is not None for result in results)
+12. Documentación Técnica
+12.1 Documentación de API
+python
+from fastapi import FastAPI
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="ML Agro API",
+        version="1.0.0",
+        description="API para recomendaciones agrícolas basadas en Machine Learning",
+        routes=app.routes,
+    )
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+12.2 Documentación de Modelos
+python
+"""
+Documentación de Modelos ML
+
+
+1. Modelo de Fechas de Siembra
+   - Algoritmo: Random Forest Regressor
+   - Features: 15 variables (clima, suelo, historial)
+   - Target: Día del año óptimo para siembra
+   - Métricas: MAE < 7 días, R² > 0.75
+   
+2. Modelo de Selección de Variedades
+   - Algoritmo: XGBoost Classifier
+   - Features: 12 variables (zona, suelo, objetivo)
+   - Target: Variedad recomendada (categórica)
+   - Métricas: Accuracy > 80%, F1-score > 0.75
+
+
+3. Modelo de Predicción de Rendimientos
+   - Algoritmo: Gradient Boosting Regressor
+   - Features: 20 variables (manejo, clima, suelo)
+   - Target: Rendimiento en kg/ha
+   - Métricas: RMSE < 500 kg/ha, R² > 0.80
+"""
+13. Plan de Migración y Deployment
+13.1 Fases de Implementación
+Fase 1: Desarrollo y Testing (6-8 semanas)
+* Desarrollo de modelos ML básicos
+* Implementación de APIs core
+* Desarrollo de frontend Angular
+* Tests unitarios y de integración
+Fase 2: Integración (2-3 semanas)F
+* Integración con sistema principal
+* Implementación de autenticación
+* Tests de integración completos
+* Optimización de performance
+Fase 3: Despliegue Piloto (2 semanas)
+* Despliegue en ambiente de testing
+* Pruebas con datos reales de clientes seleccionados
+* Ajustes basados en feedback
+* Documentación de usuario
+Fase 4: Despliegue Producción (1 semana)
+* Despliegue en ambiente productivo
+* Monitoreo intensivo
+* Soporte técnico dedicado
+* Capacitación a usuarios
+13.2 Criterios de Aceptación Técnica
+Performance
+* Tiempo de respuesta API < 30 segundos
+* Disponibilidad > 99%
+* Capacidad para 500 clientes concurrentes
+Calidad de Modelos
+* Precisión de predicción de siembra: ±7 días
+* Precisión de predicción de rendimiento: ±15%
+* Nivel de confianza promedio > 70%
+Integración
+* Autenticación 100% funcional con sistema principal
+* APIs de integración respondiendo correctamente
+* Frontend integrado sin errores
+13.3 Plan de Mantenimiento
+Reentrenamiento de Modelos
+* Evaluación mensual de performance
+* Reentrenamiento trimestral automático
+* Actualización de datasets externos
+Monitoreo Continuo
+* Logs de errores y performance
+* Métricas de uso por cliente
+* Alertas automáticas por degradación
+Actualizaciones
+* Versionado semántico de APIs
+* Backward compatibility por 6 meses
+* Proceso de deployment sin downtime
+14. Consideraciones de Escalabilidad
+14.1 Escalamiento Horizontal
+python
+# Configuración para múltiples workers
+# gunicorn_config.py
+bind = "0.0.0.0:8000"
+workers = 4
+worker_class = "uvicorn.workers.UvicornWorker"
+worker_connections = 1000
+max_requests = 1000
+max_requests_jitter = 100
+14.2 Optimización de Base de Datos
+sql
+-- Índices para optimizar consultas frecuentes
+CREATE INDEX idx_predicciones_lote_fecha ON predicciones(lote_id, fecha_creacion);
+CREATE INDEX idx_clima_historico_coords_fecha ON clima_historico(latitud, longitud, fecha);
+CREATE INDEX idx_caracteristicas_suelo_lote ON caracteristicas_suelo(lote_id);
+
+
+-- Particionado de tabla de clima histórico por año
+CREATE TABLE clima_historico_2024 PARTITION OF clima_historico
+FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+14.3 Caché Inteligente
+python
+class IntelligentCache:
+    def __init__(self):
+        self.cache_strategies = {
+            'siembra': {'ttl': 7*24, 'invalidate_on': ['weather_update']},
+            'rendimiento': {'ttl': 30*24, 'invalidate_on': ['harvest_data']},
+            'clima': {'ttl': 1*24, 'invalidate_on': ['weather_api_update']}
+        }
+    
+    def get_cache_key(self, prediction_type: str, params: dict):
+        """Genera clave de caché inteligente basada en parámetros relevantes"""
+        relevant_params = self._get_relevant_params(prediction_type, params)
+        return f"{prediction_type}:{hash(frozenset(relevant_params.items()))}"
+15. Entregables Técnicos
+15.1 Código Fuente
+* Repositorio Git con código completo
+* Documentación inline en código
+* Scripts de deployment y configuración
+* Tests automatizados 
+15.2 Documentación
+* Especificación técnica completa (este documento)
+* Manual de instalación y configuración
+* Documentación de APIs (Swagger/OpenAPI)
+* Guía de troubleshooting
+15.3 Modelos Entrenados
+* Archivos de modelos (.pkl, .joblib)
+* Datasets de entrenamiento y validación
+* Métricas de performance por modelo
+* Scripts de reentrenamiento
+15.4 Configuración de Infraestructura
+* Dockerfiles y docker-compose
+* Scripts de deployment
+* Configuración de base de datos
+* Configuración de monitoreo
+Este documento técnico proporciona una guía completa para la implementación del sistema de Machine Learning para optimización agrícola, cubriendo todos los aspectos técnicos necesarios para su desarrollo exitoso
