@@ -1,16 +1,16 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-import re
-from datetime import date, datetime
+from datetime import datetime
 from typing import Dict, List
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ALLOWED_CULTIVOS = {"trigo", "soja", "maiz", "cebada"}
 
+
 class RecomendacionBase(BaseModel):
     """Modelo base para recomendaciones."""
+
     cultivo: str
     fecha_siembra: datetime
     densidad_siembra: float
@@ -18,14 +18,22 @@ class RecomendacionBase(BaseModel):
     espaciamiento_hileras: float
     score: float = Field(ge=0.0, le=1.0)
 
+
 class SiembraRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    lote_id: UUID
-    cliente_id: UUID
+    lote_id: str
+    cliente_id: str
     cultivo: str
     campana: str
     fecha_consulta: datetime
+
+    @field_validator("lote_id", "cliente_id")
+    @classmethod
+    def validate_identifier(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("identificador no puede estar vacio")
+        return value
 
     @field_validator("cultivo")
     @classmethod
@@ -40,7 +48,7 @@ class SiembraRequest(BaseModel):
 class SiembraRecommendationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    lote_id: UUID
+    lote_id: str
     tipo_recomendacion: str = Field(default="siembra")
     recomendacion_principal: RecomendacionBase
     alternativas: List[RecomendacionBase]
