@@ -25,7 +25,8 @@ export class RecomendacionesComponent implements OnInit {
   error: string | null = null;
   lotes: Lote[] = [];
 
-  readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada', 'girasol'];
+  // Debe coincidir con los permitidos por el backend
+  readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada'];
 
   constructor(
     private readonly fb: FormBuilder,
@@ -124,8 +125,9 @@ export class RecomendacionesComponent implements OnInit {
 
   private createForm(): FormGroup {
     return this.fb.group({
-      loteId: ['lote-001', Validators.required],
-      clienteId: ['cliente-001', Validators.required],
+      // Usar UUIDs válidos por defecto para evitar 422
+      loteId: ['123e4567-e89b-12d3-a456-426614174000', Validators.required],
+      clienteId: ['123e4567-e89b-12d3-a456-426614174001', Validators.required],
       cultivo: [this.cultivos[0], Validators.required],
       campana: [this.defaultCampana, Validators.required],
       fechaConsulta: [this.getTodayIso(), Validators.required]
@@ -142,10 +144,13 @@ export class RecomendacionesComponent implements OnInit {
             loteId: firstLote.id,
             clienteId: firstLote.cliente_id
           });
+        } else {
+          // Si no hay lotes (no hay endpoint mock), mantener UUIDs válidos
         }
       },
       error: (err) => {
         console.error('Error loading lotes:', err);
+        // Mantener los UUIDs por defecto
       }
     });
   }

@@ -1,11 +1,5 @@
 import { Injectable } from '@angular/core';
-import {
-  HttpRequest,
-  HttpHandler,
-  HttpEvent,
-  HttpInterceptor,
-  HttpErrorResponse
-} from '@angular/common/http';
+import { HttpRequest, HttpHandler, HttpEvent, HttpInterceptor, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
@@ -15,15 +9,11 @@ export class AuthInterceptor implements HttpInterceptor {
   constructor(private authService: AuthService) {}
 
   intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    // Agregar API key a todas las peticiones
-    const apiKey = this.authService.getApiKey();
-    
-    const modifiedRequest = request.clone({
-      setHeaders: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Agregar solo el header que espera el backend
+    const authHeader = this.authService.getAuthToken();
+    const modifiedRequest = authHeader
+      ? request.clone({ setHeaders: { Authorization: authHeader } })
+      : request;
 
     return next.handle(modifiedRequest).pipe(
       catchError((error: HttpErrorResponse) => {
@@ -35,8 +25,8 @@ export class AuthInterceptor implements HttpInterceptor {
           console.error('Error del servidor');
         }
         
-        return throwError(() => error);
-      })
+      return throwError(() => error);
+    })
     );
   }
 }
