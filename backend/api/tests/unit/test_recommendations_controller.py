@@ -3,6 +3,8 @@ import pytest
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
+from app.dependencies import get_siembra_service  # noqa: E402
+from app.dto.siembra import SiembraRequest  # noqa: F401, E402 (type ref only)
 
 
 @pytest.fixture()
@@ -34,3 +36,24 @@ def test_siembra_recommendation_happy_path(client: TestClient):
     # A couple of light sanity checks on content
     assert data["tipo_recomendacion"] == "siembra"
     assert isinstance(data["alternativas"], list)
+
+
+def test_siembra_recommendation_invalid_body_returns_422(client: TestClient):
+    # Given: an invalid payload (invalid cultivo value)
+    payload = {
+        "lote_id": str(uuid4()),
+        "cliente_id": str(uuid4()),
+        "cultivo": "cultivo_invalido",
+        "campana": "2024/2025",
+        "fecha_consulta": "2024-10-01T00:00:00Z",
+    }
+
+    # When: calling the endpoint
+    response = client.post("/api/v1/recomendaciones/siembra", json=payload)
+
+    # Then: FastAPI/Pydantic returns 422 Unprocessable Entity
+    assert response.status_code == 422
+    detail = response.json().get("detail", [])
+    assert isinstance(detail, list)
+    # Check that validation message mentions allowed cultivos
+    assert any("cultivo debe ser uno de" in (err.get("msg") or "") for err in detail)
