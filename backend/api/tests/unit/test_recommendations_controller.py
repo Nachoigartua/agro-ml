@@ -1,0 +1,36 @@
+from uuid import uuid4
+import pytest
+
+from fastapi.testclient import TestClient  # noqa: E402
+from app.main import app  # noqa: E402
+
+
+@pytest.fixture()
+def client() -> TestClient:
+    return TestClient(app)
+
+
+def test_siembra_recommendation_happy_path(client: TestClient):
+    # Given: a valid payload for siembra recommendations
+    payload = {
+        "lote_id": str(uuid4()),
+        "cliente_id": str(uuid4()),
+        "cultivo": "trigo",
+        "campana": "2024/2025",
+        "fecha_consulta": "2024-10-01T00:00:00Z",
+    }
+
+    # When: calling the endpoint
+    response = client.post("/api/v1/recomendaciones/siembra", json=payload)
+
+    # Then: it returns 200 and the expected structure
+    assert response.status_code == 200
+    data = response.json()
+
+    # Basic structure checks per ET guidelines
+    assert "recomendacion_principal" in data
+    assert "alternativas" in data
+
+    # A couple of light sanity checks on content
+    assert data["tipo_recomendacion"] == "siembra"
+    assert isinstance(data["alternativas"], list)
