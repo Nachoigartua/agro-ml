@@ -14,7 +14,7 @@ services:
       - postgres
     volumes:
       - ./models:/app/models
-       - ./backend/api:/app
+      - ./backend/api:/app
 
   frontend:
     image: agro-ml-frontend:latest
