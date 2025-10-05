@@ -1,0 +1,97 @@
+<div class="dashboard">
+  <header class="dashboard-hero">
+    <div class="hero-text">
+      <span class="eyebrow">Monitoreo</span>
+      <h1>Estado operativo del modulo ML</h1>
+      <p>Visualiza la salud del servicio, el estado de los modelos y gatilla reentrenamientos en caliente.</p>
+    </div>
+
+    <div class="hero-actions">
+      <button class="btn btn-secondary" (click)="loadDashboardData()">
+        Actualizar datos
+      </button>
+    </div>
+  </header>
+
+  <section class="status-cards" *ngIf="healthStatus">
+    <article class="status-card">
+      <span class="label">Estado</span>
+      <strong>{{ healthStatus.status }}</strong>
+      <span class="hint">Servicio FastAPI</span>
+    </article>
+    <article class="status-card">
+      <span class="label">Ambiente</span>
+      <strong>{{ healthStatus.environment }}</strong>
+      <span class="hint">Origen de configuracion</span>
+    </article>
+    <article class="status-card">
+      <span class="label">Datos mock</span>
+      <strong>{{ healthStatus.use_mock_data ? 'Activo' : 'Desactivado' }}</strong>
+      <span class="hint">Modo de datos</span>
+    </article>
+  </section>
+
+  <section class="panel loading-panel" *ngIf="isLoading">
+    <div class="loading"></div>
+    <p>Cargando estado de modelos...</p>
+  </section>
+
+  <section class="panel alert-panel" *ngIf="error && !isLoading">
+    <div class="alert alert-error">
+      <div>
+        <strong>Error:</strong> {{ error }}
+        <p>Revisa que el backend este disponible e intenta nuevamente.</p>
+      </div>
+      <button class="btn btn-secondary" (click)="loadDashboardData()">Reintentar</button>
+    </div>
+  </section>
+
+  <section class="models-board" *ngIf="!isLoading && modelsStatus">
+    <header class="board-header">
+      <div>
+        <h2>Modelos de prediccion</h2>
+        <p>Monitorea la version cargada, fecha de entrenamiento y metricas declaradas.</p>
+      </div>
+      <span class="badge" [class.badge-success]="modelsStatus.cache_connected" [class.badge-error]="!modelsStatus.cache_connected">
+        {{ modelsStatus.cache_connected ? 'Redis conectado' : 'Redis desconectado' }}
+      </span>
+    </header>
+
+    <div class="model-grid">
+      <article class="model-card" *ngFor="let modelName of getModelsList()">
+        <ng-container *ngIf="getModelInfo(modelName) as info">
+          <header>
+            <div class="title">
+              <h3>{{ modelName | titlecase }}</h3>
+              <span class="tag" [class.tag-success]="info.loaded" [class.tag-warning]="!info.loaded">
+                {{ getModelStatusText(info) }}
+              </span>
+            </div>
+            <button class="btn btn-link" (click)="triggerTraining(modelName)">
+              Entrenar modelo
+            </button>
+          </header>
+
+          <dl class="details">
+            <div *ngIf="info.metadata?.trained_at as trainedAt">
+              <dt>Entrenado</dt>
+              <dd>{{ trainedAt | date: 'short' }}</dd>
+            </div>
+            <div *ngIf="info.metadata?.version as version">
+              <dt>Version</dt>
+              <dd>{{ version }}</dd>
+            </div>
+            <div *ngIf="info.metadata?.metrics as rawMetrics">
+              <dt>Metricas</dt>
+              <dd class="metrics">
+                <span *ngFor="let metric of (rawMetrics | keyvalue)">
+                  {{ metric.key }}: {{ metric.value | number: '1.2-2' }}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </ng-container>
+      </article>
+    </div>
+  </section>
+</div>

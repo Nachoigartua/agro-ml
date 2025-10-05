@@ -1,8 +1,8 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
@@ -14,6 +14,13 @@ services:
       - postgres
     volumes:
       - ./models:/app/models
+
+  frontend:
+    image: agro-ml-frontend:latest
+    ports:
+      - "4200:4200"
+    depends_on:
+      - backend
 
   postgres:
     image: postgis/postgis:13-3.1

@@ -1,0 +1,178 @@
+﻿<div class="recommendations-page">
+  <header class="page-hero">
+    <div class="hero-copy">
+      <span class="eyebrow">Modulo ML Agro</span>
+      <h1>Recomendaciones inteligentes de siembra</h1>
+      <p>
+        Ajusta los parametros clave del lote y obten ventanas optimas de siembra respaldadas por
+        modelos predictivos y factores agronomicos priorizados.
+      </p>
+    </div>
+
+    <div class="hero-metrics">
+      <div class="metric-tile">
+        <span class="metric-label">Cultivos soportados</span>
+        <span class="metric-value">{{ cultivos.length }}</span>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">Fecha de consulta</span>
+        <span class="metric-value">{{ recommendationForm.value.fechaConsulta | date: 'd MMM' }}</span>
+      </div>
+      <div class="metric-tile" *ngIf="result">
+        <span class="metric-label">Confianza</span>
+        <span class="metric-value">{{ result.nivel_confianza * 100 | number: '1.0-0' }}%</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="content-grid" [class.has-result]="!!result">
+    <section class="panel panel-form">
+      <header class="panel-header">
+        <div>
+          <h2>Configura la consulta</h2>
+          <p>Define la campana, lote y cultivo antes de solicitar la recomendacion.</p>
+        </div>
+        <button type="button" class="btn btn-ghost" (click)="resetForm()">
+          Restablecer
+        </button>
+      </header>
+
+      <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
+        <div class="field-group">
+          <label for="loteId">Lote</label>
+          <select id="loteId" formControlName="loteId">
+            <option *ngFor="let lote of lotes" [value]="lote.id">
+              {{ lote.nombre }} - {{ lote.superficie_ha | number: '1.0-1' }} ha
+            </option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="clienteId">Cliente</label>
+          <input id="clienteId" type="text" formControlName="clienteId" placeholder="Ej: cliente-001" />
+        </div>
+
+        <div class="field-group">
+          <label for="cultivo">Cultivo</label>
+          <div class="chip-group">
+            <button
+              type="button"
+              class="chip"
+              *ngFor="let cultivo of cultivos"
+              [class.chip-active]="recommendationForm.value.cultivo === cultivo"
+              (click)="onCultivoSelect(cultivo)"
+            >
+              {{ cultivo | titlecase }}
+            </button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="campana">Campaña</label>
+          <input id="campana" type="text" formControlName="campana" placeholder="2024/2025" />
+        </div>
+
+        <div class="field-group">
+          <label for="fechaConsulta">Fecha de consulta</label>
+          <input id="fechaConsulta" type="date" formControlName="fechaConsulta" />
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="isLoading || recommendationForm.invalid">
+            <span *ngIf="!isLoading">Generar recomendacion</span>
+            <span *ngIf="isLoading">
+              <span class="loading"></span>
+              Procesando...
+            </span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel panel-result" *ngIf="result || error || isLoading">
+      <div class="loader" *ngIf="isLoading">
+        <div class="loading"></div>
+        <p>Generando recomendacion...</p>
+      </div>
+
+      <div class="alert alert-error" *ngIf="error && !isLoading">
+        <strong>Error:</strong> {{ error }}
+      </div>
+
+      <ng-container *ngIf="result && !isLoading">
+        <header class="result-header">
+          <div>
+            <span class="pill">{{ result.tipo_recomendacion | titlecase }}</span>
+            <h2>Plan recomendado para el lote {{ result.lote_id }}</h2>
+          </div>
+          <div class="confidence-badge" [ngClass]="getConfidenceClass(result.nivel_confianza)">
+            <span>{{ getConfidenceLabel(result.nivel_confianza) }}</span>
+            <strong>{{ result.nivel_confianza * 100 | number: '1.0-0' }}%</strong>
+          </div>
+        </header>
+
+        <div class="result-grid">
+          <article class="result-card">
+            <h3>Ventana optima</h3>
+            <div class="main-window">
+              <span class="date">{{ formatDate(result.recomendacion_principal.fecha_optima) }}</span>
+              <span class="range">{{ formatVentana(result.recomendacion_principal.ventana) }}</span>
+            </div>
+            <ul class="meta-list">
+              <li *ngIf="result.recomendacion_principal.justificacion">
+                <span class="label">Justificacion</span>
+                <p>{{ result.recomendacion_principal.justificacion }}</p>
+              </li>
+              <li *ngIf="result.recomendacion_principal.riesgos?.length">
+                <span class="label">Riesgos</span>
+                <ul class="tag-list">
+                  <li *ngFor="let riesgo of result.recomendacion_principal.riesgos">{{ riesgo }}</li>
+                </ul>
+              </li>
+            </ul>
+          </article>
+
+          <article class="result-card" *ngIf="result.alternativas?.length">
+            <h3>Alternativas</h3>
+            <div class="alternative-grid">
+              <div class="alternative-card" *ngFor="let alt of result.alternativas; trackBy: trackByAlternative">
+                <header>
+                  <span class="alt-badge">{{ alt.etiqueta || 'Alternativa' }}</span>
+                  <span class="alt-confidence">{{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+                </header>
+                <p class="alt-window">{{ formatVentana(alt.ventana) }}</p>
+                <p *ngIf="alt.justificacion" class="alt-justification">{{ alt.justificacion }}</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="result-card" *ngIf="result.factores_considerados?.length">
+            <h3>Factores considerados</h3>
+            <ul class="factor-grid">
+              <li *ngFor="let factor of result.factores_considerados">{{ factor }}</li>
+            </ul>
+          </article>
+
+          <article class="result-card" *ngIf="result.costos_estimados">
+            <h3>Costos estimados</h3>
+            <dl class="costs-grid">
+              <div *ngFor="let item of result.costos_estimados | keyvalue">
+                <dt>{{ item.key | titlecase }}</dt>
+                <dd>{{ item.value | currency: 'USD':'symbol':'1.0-0' }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="result-card" *ngIf="result.metadata">
+            <h3>Metadatos</h3>
+            <pre>{{ result.metadata | json }}</pre>
+          </article>
+        </div>
+
+        <footer class="result-footer">
+          <span>Generado el {{ formatDateTime(result.fecha_generacion) }}</span>
+        </footer>
+      </ng-container>
+    </section>
+  </div>
+</div>
