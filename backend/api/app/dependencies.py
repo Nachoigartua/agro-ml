@@ -2,7 +2,7 @@
 import os
 from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from .clients.main_system_client import MainSystemAPIClient
 from .services.siembra_service import SiembraRecommendationService
@@ -13,10 +13,9 @@ except ModuleNotFoundError:  # pragma: no cover
     Redis = None  # type: ignore
 
 
-@lru_cache
-def get_main_system_client() -> MainSystemAPIClient:
-    """Provider del cliente del sistema principal."""
-    return MainSystemAPIClient(base_url="http://sistema-principal/api")
+def get_main_system_client(request: Request) -> MainSystemAPIClient:
+    """Provider del cliente del sistema principal (scope por request)."""
+    return MainSystemAPIClient(base_url="http://sistema-principal/api", request=request)
 
 
 @lru_cache

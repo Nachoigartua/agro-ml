@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
         "--data-path",
         type=Path,
         default=None,
-        help="Ruta alternativa al dataset CSV (por defecto usa data/dataset_siembra.csv).",
+        help="Ruta alternativa al dataset CSV (por defecto usa data/dataset_completo_argentina.csv).",
     )
     parser.add_argument(
         "--test-size",
@@ -39,7 +39,7 @@ def resolve_paths(custom_data_path: Path | None = None) -> tuple[Path, Path, Pat
     ml_dir = Path(__file__).resolve().parent
     project_root = ml_dir.parent.parent
 
-    data_path = custom_data_path or project_root / "data" / "dataset_siembra.csv"
+    data_path = custom_data_path or project_root / "data" / "dataset_completo_argentina.csv"
     model_path = ml_dir / "models" / "modelo_siembra.joblib"
     metrics_path = ml_dir / "models" / "siembra_metrics.json"
     return data_path, model_path, metrics_path

@@ -77,24 +77,28 @@ def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _derive_target_from_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Asigna dia_del_ano estimando ventanas de siembra por cultivo."""
+def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Garantiza que ``dia_del_ano`` exista derivando datos reales."""
 
-    rng = np.random.default_rng(42)
+    if TARGET in df.columns:
+        return df
 
-    def estimar_dia_optimo(row: pd.Series) -> int:
-        cultivo = str(row["cultivo_anterior"]).strip().lower()
-        if cultivo == "trigo":
-            return int(rng.integers(120, 161))
-        if cultivo == "soja":
-            return int(rng.integers(300, 341))
-        if cultivo == "maiz":
-            return int(rng.integers(260, 291))
-        if cultivo == "cebada":
-            return int(rng.integers(130, 171))
-        return int(rng.integers(150, 201))
+    fecha_col = "fecha_siembra_estimada"
+    if fecha_col not in df.columns:
+        raise ValueError(
+            "El dataset real debe incluir la columna fecha_siembra_estimada para derivar dia_del_ano"
+        )
 
-    df[TARGET] = df.apply(estimar_dia_optimo, axis=1)
+    fechas = pd.to_datetime(df[fecha_col], errors='coerce', utc=False)
+    if fechas.isna().any():
+        raise ValueError(
+            "No se pudo convertir fecha_siembra_estimada a fechas validas para todas las filas"
+        )
+
+    df[TARGET] = fechas.dt.dayofyear.astype(int)
+    valores = df[TARGET]
+    if not valores.between(1, 366).all():
+        raise ValueError("Los valores generados para dia_del_ano estan fuera del rango valido")
     return df
 
 
@@ -112,8 +116,7 @@ def load_dataset(path: Path) -> pd.DataFrame:
     df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
     df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
 
-    if TARGET not in df.columns:
-        df = _derive_target_from_features(df)
+    df = _ensure_target_column(df)
 
     columnas_esperadas = set(FEATURES + (TARGET,))
     faltantes = columnas_esperadas.difference(df.columns)

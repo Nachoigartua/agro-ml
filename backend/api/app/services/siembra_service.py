@@ -38,14 +38,70 @@ DEFAULT_MODEL_PATH = (
     / "models"
     / "modelo_siembra.joblib"
 )
-DATASET_PATH = PROJECT_ROOT / "data" / "dataset_siembra.csv"
+DATASET_PATH = PROJECT_ROOT / "data" / "dataset_completo_argentina.csv"
 
-RECOMENDACIONES_BASE: Dict[str, Dict[str, float]] = {
-    "trigo": {"densidad": 150.0, "profundidad": 3.0, "espaciamiento": 17.5},
-    "soja": {"densidad": 60.0, "profundidad": 4.0, "espaciamiento": 52.5},
-    "maiz": {"densidad": 25.0, "profundidad": 5.0, "espaciamiento": 70.0},
-    "cebada": {"densidad": 120.0, "profundidad": 3.0, "espaciamiento": 18.0},
-}
+class SiembraParametersCalculator:
+    """Calcula parámetros técnicos de siembra basados en condiciones específicas."""
+    
+    def __init__(self):
+        # Rangos base por cultivo (mínimos y máximos sugeridos)
+        self._base_params = {
+            "trigo": {"densidad": (120.0, 180.0), "profundidad": (2.0, 4.0), "espaciamiento": (15.0, 20.0)},
+            "soja": {"densidad": (45.0, 75.0), "profundidad": (3.0, 5.0), "espaciamiento": (35.0, 70.0)},
+            "maiz": {"densidad": (20.0, 30.0), "profundidad": (3.0, 7.0), "espaciamiento": (50.0, 80.0)},
+            "cebada": {"densidad": (100.0, 140.0), "profundidad": (2.5, 3.5), "espaciamiento": (15.0, 20.0)}
+        }
+
+    def calculate_parameters(self, 
+                           cultivo: str,
+                           suelo: dict,
+                           clima: dict,
+                           ubicacion: dict) -> dict:
+        """Calcula parámetros técnicos basados en condiciones específicas."""
+        
+        # 1. Obtener rango base
+        base_range = self._base_params.get(cultivo.lower())
+        if not base_range:
+            raise ValueError(f"Cultivo no soportado: {cultivo}")
+
+        # 2. Ajustar por tipo de suelo
+        tipo_suelo = suelo.get("tipo_suelo", "").lower()
+        densidad_adj = 1.0
+        profundidad_adj = 1.0
+        
+        if tipo_suelo == "argiudol":
+            densidad_adj *= 1.1  # Mejor suelo = mayor densidad
+        elif tipo_suelo == "franco arenoso":
+            densidad_adj *= 0.9
+            profundidad_adj *= 1.2  # Suelo suelto = más profundidad
+
+        # 3. Ajustar por materia orgánica
+        mo = float(suelo.get("materia_organica", 0))
+        if mo > 3.0:
+            densidad_adj *= 1.05
+        elif mo < 2.0:
+            densidad_adj *= 0.95
+
+        # 4. Ajustar por clima
+        precip_media = sum([
+            float(clima.get(f"precipitacion_{mes}", 0))
+            for mes in ["marzo", "abril", "mayo"]
+        ]) / 3
+
+        if precip_media < 50:  # mm/mes
+            densidad_adj *= 0.9
+            profundidad_adj *= 1.1
+
+        # 5. Calcular valores finales (promedio del rango * ajustes)
+        densidad = (base_range["densidad"][0] + base_range["densidad"][1]) / 2 * densidad_adj
+        profundidad = (base_range["profundidad"][0] + base_range["profundidad"][1]) / 2 * profundidad_adj
+        espaciamiento = (base_range["espaciamiento"][0] + base_range["espaciamiento"][1]) / 2
+
+        return {
+            "densidad": round(densidad, 1),
+            "profundidad": round(profundidad, 1),
+            "espaciamiento": round(espaciamiento, 1)
+        }
 
 COSTOS_BASE: Dict[str, Dict[str, float]] = {
     "trigo": {"semilla": 135.0, "laboreo": 65.0},
@@ -63,7 +119,7 @@ class SiembraRecommendationService:
         main_system_client: MainSystemAPIClient,
         *,
         model_path: Optional[Path | str] = None,
-        redis_client: Optional[Redis] = None,
+        redis_client: Optional[Any] = None,
         cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS,
     ) -> None:
         self.main_system_client = main_system_client
@@ -119,29 +175,28 @@ class SiembraRecommendationService:
         df = pd.read_csv(DATASET_PATH)
         df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
         df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
-        if "dia_del_ano" not in df.columns:
-            df = self._derive_target_from_features(df)
+        df = self._ensure_target_column(df)
         self._reference_dataset = df
 
     @staticmethod
-    def _derive_target_from_features(df: pd.DataFrame) -> pd.DataFrame:
-        """Asigna dia_del_ano estimando ventanas de siembra por cultivo."""
+    def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
+        """Garantiza que la referencia tenga el objetivo derivado de fechas reales."""
 
-        rng = np.random.default_rng(42)
+        if "dia_del_ano" in df.columns:
+            valores = df["dia_del_ano"].dropna()
+            if not valores.empty and not valores.between(1, 366).all():
+                raise ValueError("Los valores de dia_del_ano en el dataset de referencia no son validos")
+            return df
 
-        def estimar_dia_optimo(row: pd.Series) -> int:
-            cultivo = str(row["cultivo_anterior"]).strip().lower()
-            if cultivo == "trigo":
-                return int(rng.integers(120, 161))
-            if cultivo == "soja":
-                return int(rng.integers(300, 341))
-            if cultivo == "maiz":
-                return int(rng.integers(260, 291))
-            if cultivo == "cebada":
-                return int(rng.integers(130, 171))
-            return int(rng.integers(150, 201))
+        fecha_col = "fecha_siembra_estimada"
+        if fecha_col not in df.columns:
+            raise ValueError("El dataset de referencia debe tener fecha_siembra_estimada para derivar dia_del_ano")
 
-        df["dia_del_ano"] = df.apply(estimar_dia_optimo, axis=1)
+        fechas = pd.to_datetime(df[fecha_col], errors='coerce', utc=False)
+        if fechas.isna().any():
+            raise ValueError("No se pudo convertir fecha_siembra_estimada a fechas validas en el dataset de referencia")
+
+        df["dia_del_ano"] = fechas.dt.dayofyear.astype(int)
         return df
 
     async def generate_recommendation(
@@ -252,6 +307,18 @@ class SiembraRecommendationService:
         missing = [name for name in self._feature_order if name not in feature_values]
         if missing:
             raise ValueError(f"Faltan valores para las features: {', '.join(missing)}")
+
+        # Guardar datos del lote actual para cálculos posteriores
+        self._ultimo_suelo = suelo
+        self._ultimo_clima = {
+            k: feature_values[k] 
+            for k in feature_values 
+            if 'temp_' in k or 'precipitacion_' in k
+        }
+        self._ultima_ubicacion = {
+            'latitud': latitud,
+            'longitud': longitud
+        }
 
         ordered_vector = {name: feature_values[name] for name in self._feature_order}
         return ordered_vector, referencia, distancia
@@ -386,14 +453,21 @@ class SiembraRecommendationService:
             candidate = request.fecha_consulta.year + 1
         return candidate
 
-    def _get_recommendation_defaults(self, cultivo: str) -> Dict[str, float]:
-        """Obtiene parametros agronomicos base segun el cultivo actual."""
-
-        cultivo_clave = cultivo.lower()
-        base = RECOMENDACIONES_BASE.get(cultivo_clave)
-        if base:
-            return base
-        return {"densidad": 80.0, "profundidad": 5.0, "espaciamiento": 35.0}
+    def _get_recommendation_defaults(self, cultivo: str, **kwargs) -> Dict[str, float]:
+        """Calcula parámetros agronómicos según condiciones específicas."""
+        calculator = SiembraParametersCalculator()
+        
+        # Obtener datos del último lote procesado (si existen)
+        suelo = getattr(self, '_ultimo_suelo', {})
+        clima = getattr(self, '_ultimo_clima', {})
+        ubicacion = getattr(self, '_ultima_ubicacion', {})
+        
+        return calculator.calculate_parameters(
+            cultivo=cultivo,
+            suelo=suelo,
+            clima=clima,
+            ubicacion=ubicacion
+        )
 
     def _estimate_costs(self, cultivo: str) -> Dict[str, float]:
         """Calcula costos estimados en base al cultivo objetivo."""
