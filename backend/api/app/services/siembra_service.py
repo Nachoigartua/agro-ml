@@ -1,6 +1,7 @@
 ﻿"""Servicio de recomendaciones de siembra respaldado por datos reales."""
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -30,7 +31,7 @@ from ..dto.siembra import (
 
 DEFAULT_CACHE_TTL_SECONDS = 6 * 3600
 BACKEND_DIR = Path(__file__).resolve().parents[3]
-PROJECT_ROOT = BACKEND_DIR.parent
+PROJECT_ROOT = Path(os.getenv("AGRO_ML_PROJECT_ROOT", str(BACKEND_DIR.parent))).resolve()
 DEFAULT_MODEL_PATH = (
     PROJECT_ROOT
     / "backend"
