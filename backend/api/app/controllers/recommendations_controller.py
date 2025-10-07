@@ -33,7 +33,7 @@ async def obtener_recomendacion_siembra(
             "Recomendacion de siembra generada",
             extra={
                 "lote_id": str(response.lote_id),
-                "confianza": response.nivel_confianza,
+                "fecha_siembra": response.recomendacion_principal.fecha_siembra.isoformat(),
             },
         )
         return response

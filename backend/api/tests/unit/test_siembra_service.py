@@ -21,11 +21,9 @@ def anyio_backend():
 
 
 @pytest.mark.anyio
-async def test_service_returns_two_alternativas(anyio_backend):
-    """Verifica que el servicio genere la recomendacion principal y dos alternativas."""
-
+async def test_service_returns_optimal_date(anyio_backend):
     client = MainSystemAPIClient(base_url="http://sistema-principal/api")
-    service = SiembraRecommendationService(client, redis_client=None)
+    service = SiembraRecommendationService(client)
 
     request = SiembraRequest(
         lote_id="lote-001",
@@ -37,28 +35,25 @@ async def test_service_returns_two_alternativas(anyio_backend):
 
     response = await service.generate_recommendation(request)
 
-    assert len(response.alternativas) == 2
-    fechas = {alt.fecha_siembra for alt in response.alternativas}
-    assert len(fechas) == 2
-    assert response.recomendacion_principal.fecha_siembra not in fechas
+    assert response.lote_id == "lote-001"
+    assert response.recomendacion_principal.cultivo == "trigo"
+    assert response.recomendacion_principal.fecha_siembra.year == 2026
 
 
 @pytest.mark.anyio
-async def test_service_cache_key_is_deterministic(anyio_backend):
-    """Confirma que la clave de cache es reproducible para la misma solicitud."""
-
+async def test_service_uses_defaults_when_data_missing(anyio_backend):
     client = MainSystemAPIClient(base_url="http://sistema-principal/api")
-    service = SiembraRecommendationService(client, redis_client=None)
+    service = SiembraRecommendationService(client)
 
     request = SiembraRequest(
         lote_id="lote-002",
-        cliente_id="cliente-001",
+        cliente_id="cliente-002",
         cultivo="soja",
         campana="2025-2026",
         fecha_consulta=datetime.datetime(2025, 10, 4),
     )
 
-    key_first = service._build_cache_key(request)
-    key_second = service._build_cache_key(request)
+    response = await service.generate_recommendation(request)
 
-    assert key_first == key_second
+    assert response.recomendacion_principal.cultivo == "soja"
+    assert 1 <= response.recomendacion_principal.fecha_siembra.timetuple().tm_yday <= 366

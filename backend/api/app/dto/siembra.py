@@ -1,22 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ALLOWED_CULTIVOS = {"trigo", "soja", "maiz", "cebada"}
 
 
-class RecomendacionBase(BaseModel):
-    """Modelo base para recomendaciones."""
+class SiembraRecommendationDetail(BaseModel):
+    """Detalle de la recomendación de siembra."""
 
     cultivo: str
     fecha_siembra: datetime
-    densidad_siembra: float
-    profundidad_siembra: float
-    espaciamiento_hileras: float
-    score: float = Field(ge=0.0, le=1.0)
 
 
 class SiembraRequest(BaseModel):
@@ -49,10 +45,5 @@ class SiembraRecommendationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     lote_id: str
-    tipo_recomendacion: str = Field(default="siembra")
-    recomendacion_principal: RecomendacionBase
-    alternativas: List[RecomendacionBase]
-    nivel_confianza: float = Field(ge=0.0, le=1.0)
-    factores_considerados: List[str]
-    costos_estimados: Dict[str, float]
-    fecha_generacion: datetime
+    tipo_recomendacion: Literal["siembra"] = Field(default="siembra")
+    recomendacion_principal: SiembraRecommendationDetail

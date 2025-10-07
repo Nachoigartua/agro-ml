@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   backend:
@@ -9,14 +9,12 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@postgres:5432/ml_agro
-      - REDIS_URL=redis://redis:6379
       - AGRO_ML_PROJECT_ROOT=/workspace
     depends_on:
       - postgres
     volumes:
       - ./backend/api:/app
       - ./backend:/workspace/backend
-      - ./data:/workspace/data
       
   postgres:
     image: postgis/postgis:13-3.1
