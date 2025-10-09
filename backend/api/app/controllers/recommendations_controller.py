@@ -1,0 +1,59 @@
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from ..dependencies import get_siembra_service
+from ..dto.siembra import SiembraRecommendationResponse, SiembraRequest
+from ..services.siembra_service import SiembraRecommendationService
+from ..exceptions import CampaignNotFoundError
+
+
+logger = logging.getLogger("agro_ml.recommendations")
+
+router = APIRouter(prefix="/api/v1/recomendaciones", tags=["recomendaciones"])
+
+
+@router.post(
+    "/siembra",
+    response_model=SiembraRecommendationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def obtener_recomendacion_siembra(
+    payload: SiembraRequest,
+    service: SiembraRecommendationService = Depends(get_siembra_service),
+) -> SiembraRecommendationResponse:
+    """Genera una recomendacion de siembra."""
+    logger.info(
+        "Procesando recomendacion de siembra",
+        extra={"lote_id": str(payload.lote_id), "cultivo": payload.cultivo},
+    )
+
+    try:
+        response = await service.generate_recommendation(payload)
+        return response
+    except CampaignNotFoundError as exc:
+        logger.warning(
+            "Campaña requerida o inválida en recomendación de siembra",
+            extra={"error": str(exc)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        logger.warning(
+            "Error de validacion en recomendacion de siembra",
+            extra={"error": str(exc)},
+        )
+        logger.info(f"ValueError: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error de validacion: {exc}",
+        ) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Error inesperado al generar recomendacion de siembra")
+        logger.info(f"Exception: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo generar la recomendacion de siembra: {exc}",
+        ) from exc

@@ -1,0 +1,34 @@
+<div class="dashboard">
+  <header class="dashboard-hero">
+    <div class="hero-text">
+      <span class="eyebrow">Monitoreo</span>
+      <h1>Estado operativo del modulo ML</h1>
+      <p>Visualiza la salud del servicio.</p>
+    </div>
+
+    
+  </header>
+
+  <section class="status-cards" *ngIf="healthStatus">
+    <article class="status-card">
+      <span class="label">Estado API Backend</span>
+      <strong>{{ healthStatus.status }}</strong>
+    </article>
+  </section>
+
+  <section class="panel loading-panel" *ngIf="isLoading">
+    <div class="loading"></div>
+    <p>Cargando estado del servicio...</p>
+  </section>
+
+  <section class="panel alert-panel" *ngIf="error && !isLoading">
+    <div class="alert alert-error">
+      <div>
+        <strong>Error:</strong> {{ error }}
+        <p>Revisa que el backend esté disponible e intenta nuevamente.</p>
+      </div>
+      <button class="btn btn-secondary" (click)="loadDashboardData()">Reintentar</button>
+    </div>
+  </section>
+
+</div>
