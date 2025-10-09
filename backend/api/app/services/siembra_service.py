@@ -152,10 +152,8 @@ class SiembraRecommendationService:
 
     def _clamp_day_of_year(self, value: float) -> int:
         day = int(round(value))
-        if day < 1:
-            return 1
-        if day > 366:
-            return 366
+        if day < 1 or day > 365:
+            self.logger.warning(f"Predicción fuera de rango: {day} (valor original: {value})")
         return day
 
     def _resolve_target_year(self, request: SiembraRequest) -> int:
