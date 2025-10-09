@@ -29,11 +29,6 @@ DEFAULT_MODEL_PATH = (
     / "modelo_siembra.joblib"
 )
 
-
-class CampaignNotFoundError(Exception):
-    """Señala que la campaña es requerida o inválida."""
-
-
 class SiembraRecommendationService:
     """Genera la fecha de siembra recomendada usando el modelo entrenado."""
 
