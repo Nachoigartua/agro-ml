@@ -1,9 +1,10 @@
-﻿import sys
+import sys
 from pathlib import Path
 
 import pandas as pd
 
-ROOT_DIR = Path(__file__).resolve().parents[4]
+# Resolve project root and machine-learning path
+ROOT_DIR = Path(__file__).resolve().parents[3]
 ML_PATH = ROOT_DIR / "backend" / "machine-learning"
 if str(ML_PATH) not in sys.path:
     sys.path.append(str(ML_PATH))
@@ -23,3 +24,4 @@ def test_load_dataset_derives_target_column():
     fechas = pd.to_datetime(df["fecha_siembra_estimada"])
     esperado = fechas.dt.dayofyear.astype(int)
     assert esperado.equals(df[TARGET])
+

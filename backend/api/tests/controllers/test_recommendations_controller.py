@@ -33,17 +33,24 @@ def test_siembra_recommendation_happy_path(client: TestClient):
     assert response.status_code == 200
     data = response.json()
 
-    assert data == {
-        "lote_id": payload["lote_id"],
-        "tipo_recomendacion": "siembra",
-        "recomendacion_principal": {
-            "cultivo": payload["cultivo"],
-            "fecha_siembra": data["recomendacion_principal"]["fecha_siembra"],
-        },
-    }
+    # Validaciones de campos de alto nivel
+    assert data["lote_id"] == payload["lote_id"]
+    assert data["tipo_recomendacion"] == "siembra"
+    assert data["cultivo"] == payload["cultivo"]
 
-    fecha = data["recomendacion_principal"]["fecha_siembra"]
-    assert fecha.startswith("2025")  # fecha consulta 2024 -> recomienda 2025
+    # Validaciones de la recomendacion principal (nuevo esquema)
+    rp = data.get("recomendacion_principal", {})
+    assert isinstance(rp, dict)
+    assert "fecha_optima" in rp
+    assert "ventana" in rp
+    assert "confianza" in rp
+
+    from datetime import datetime as _dt
+
+    # La fecha optima debe pertenecer al año siguiente al de la consulta
+    fecha_optima = rp["fecha_optima"]
+    dt = _dt.strptime(fecha_optima, "%d-%m-%Y")
+    assert dt.year == 2025  # fecha consulta 2024 -> recomienda 2025
 
 
 def test_siembra_recommendation_invalid_body_returns_422(client: TestClient):
