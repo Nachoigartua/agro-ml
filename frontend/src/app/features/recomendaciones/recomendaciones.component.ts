@@ -15,7 +15,7 @@ import {
   styleUrls: ['./recomendaciones.component.scss']
 })
 export class RecomendacionesComponent implements OnInit {
-  private readonly defaultCampana = '2024/2025';
+  private readonly defaultCampana = '2025/2026';
 
   recommendationForm: FormGroup;
   isLoading = false;
