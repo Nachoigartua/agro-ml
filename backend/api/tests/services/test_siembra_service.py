@@ -17,8 +17,8 @@ class _FakeMainSystemClient:
 def test_generate_recommendation_returns_expected_shape():
     # Given: a valid SiembraRequest and a service with a fake client
     request = SiembraRequest(
-        lote_id=uuid4(),
-        cliente_id=uuid4(),
+        lote_id=str(uuid4()),
+        cliente_id=str(uuid4()),
         cultivo="trigo",
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
@@ -31,7 +31,8 @@ def test_generate_recommendation_returns_expected_shape():
     # Then: response has the expected structure and values
     assert response.lote_id == request.lote_id
     assert response.tipo_recomendacion == "siembra"
-    assert response.recomendacion_principal.cultivo == request.cultivo
+    # El cultivo ahora está en el nivel superior de la respuesta
+    assert response.cultivo == request.cultivo
     assert 0.0 <= response.nivel_confianza <= 1.0
     assert isinstance(response.alternativas, list)
     assert isinstance(response.factores_considerados, list)
@@ -45,8 +46,8 @@ def test_generate_recommendation_propagates_503_from_client():
             raise httpx.HTTPStatusError("Service unavailable", request=req, response=resp)
 
     request = SiembraRequest(
-        lote_id=uuid4(),
-        cliente_id=uuid4(),
+        lote_id=str(uuid4()),
+        cliente_id=str(uuid4()),
         cultivo="trigo",
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
