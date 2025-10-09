@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
+import re
 
 import joblib
 import pandas as pd
@@ -16,6 +17,7 @@ from ..dto.siembra import (
     SiembraRequest,
     RecomendacionPrincipalSiembra,
 )
+from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = Path(os.getenv("AGRO_ML_PROJECT_ROOT", str(BACKEND_DIR.parent))).resolve()
@@ -26,6 +28,10 @@ DEFAULT_MODEL_PATH = (
     / "models"
     / "modelo_siembra.joblib"
 )
+
+
+class CampaignNotFoundError(Exception):
+    """Señala que la campaña es requerida o inválida."""
 
 
 class SiembraRecommendationService:
@@ -81,7 +87,7 @@ class SiembraRecommendationService:
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
         transformed = self._preprocessor.transform(dataframe)
         predicted_day = self._predict_day_of_year(transformed)
-        target_year = self._resolve_target_year(request)
+        target_year = self._resolve_target_year_from_campaign(request)
         fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
 
         ventana = [
@@ -102,7 +108,7 @@ class SiembraRecommendationService:
             nivel_confianza=1.0,
             factores_considerados=[],
             costos_estimados={},
-            fecha_generacion=datetime.now(),
+            fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
         )
 
@@ -168,8 +174,28 @@ class SiembraRecommendationService:
             self.logger.warning(f"Predicción fuera de rango: {day} (valor original: {value})")
         return day
 
-    def _resolve_target_year(self, request: SiembraRequest) -> int:
-        return request.fecha_consulta.year + 1
+    def _resolve_target_year_from_campaign(self, request: SiembraRequest) -> int:
+        """Determina el año objetivo desde `campana` dividiendo por '/'."""
+
+        campana = (request.campana or "").strip()
+        if not campana:
+            raise ExternalCampaignNotFoundError(
+                "El campo 'campaña' es requerido y no llegó como correspondía"
+            )
+
+        partes = [p.strip() for p in campana.split("/")]
+        if len(partes) < 2:
+            raise ExternalCampaignNotFoundError(
+                "El campo 'campaña' es requerido y no llegó como correspondía"
+            )
+
+        anio_str = partes[1]
+        if not re.fullmatch(r"(?:19|20)\d{2}", anio_str):
+            raise ExternalCampaignNotFoundError(
+                "El campo 'campaña' es requerido y no llegó como correspondía"
+            )
+
+        return int(anio_str)
 
     @staticmethod
     def _day_of_year_to_date(day_of_year: int, year: int) -> datetime:
