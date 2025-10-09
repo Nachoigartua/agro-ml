@@ -102,8 +102,19 @@ export class RecomendacionesComponent implements OnInit {
     if (Number.isNaN(date.getTime())) {
       return value;
     }
-
-    return date.toLocaleString();
+    try {
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'America/Argentina/Buenos_Aires'
+      }).format(date);
+    } catch {
+      return date.toLocaleString('es-AR');
+    }
   }
 
   private createForm(): FormGroup {
@@ -130,15 +141,25 @@ export class RecomendacionesComponent implements OnInit {
   }
 
   formatDate(value: string): string {
+    // El backend envía fechas de ventana y óptima como dd-mm-yyyy.
+    const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/;
+    if (ddmmyyyy.test(value)) {
+      const [dd, mm, yyyy] = value.split('-');
+      return `${dd}/${mm}/${yyyy}`;
+    }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
       return value;
     }
-
-    return date.toLocaleDateString();
-  }
-
-  private getTodayIso(): string {
-    return new Date().toISOString().substring(0, 10);
+    try {
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString('es-AR');
+    }
   }
 }

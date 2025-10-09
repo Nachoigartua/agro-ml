@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..dependencies import get_siembra_service
 from ..dto.siembra import SiembraRecommendationResponse, SiembraRequest
 from ..services.siembra_service import SiembraRecommendationService
+from ..exceptions import CampaignNotFoundError
 
 
 logger = logging.getLogger("agro_ml.recommendations")
@@ -30,6 +31,15 @@ async def obtener_recomendacion_siembra(
     try:
         response = await service.generate_recommendation(payload)
         return response
+    except CampaignNotFoundError as exc:
+        logger.warning(
+            "Campaña requerida o inválida en recomendación de siembra",
+            extra={"error": str(exc)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         logger.warning(
             "Error de validacion en recomendacion de siembra",
