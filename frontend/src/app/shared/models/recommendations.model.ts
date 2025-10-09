@@ -1,20 +1,9 @@
-export interface Lote {
-  id: string;
-  cliente_id: string;
-  nombre: string;
-  latitud: number;
-  longitud: number;
-  superficie_ha: number;
-  tipo_suelo: string;
-  caracteristicas?: Record<string, unknown>;
-}
-
 export interface SiembraRecommendationRequest {
   lote_id: string;
-  cliente_id: string;
   cultivo: string;
   campana: string;
   fecha_consulta: string;
+  cliente_id: string; // provisto por el FE (por ahora fijo)
 }
 
 export interface RecommendationWindow {
@@ -26,17 +15,20 @@ export interface RecommendationWindow {
   indicadores_clave?: Record<string, number>;
 }
 
-export type RecommendationAlternative = RecommendationWindow & {
-  etiqueta?: string;
-};
+export interface RecommendationAlternative {
+  fecha: string;
+  pros?: string[];
+  contras?: string[];
+  confianza: number;
+}
 
 export type CostBreakdown = Record<string, number>;
 
-export interface SiembraRecommendationResponse {
+export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unknown> {
   lote_id: string;
-  tipo_recomendacion: 'siembra';
-  recomendacion_principal: RecommendationWindow;
-  alternativas: RecommendationAlternative[];
+  tipo_recomendacion: string;
+  recomendacion_principal: TPrincipal;
+  alternativas: TAlternative[];
   nivel_confianza: number;
   factores_considerados: string[];
   costos_estimados?: CostBreakdown;
@@ -44,26 +36,14 @@ export interface SiembraRecommendationResponse {
   metadata?: Record<string, unknown>;
 }
 
-export interface ModelStatus {
-  name: string;
-  loaded: boolean;
-  metadata: {
-    trained_at?: string;
-    version?: string;
-    metrics?: Record<string, number>;
-  };
-  path: string;
+export interface SiembraRecommendationResponse extends RecomendacionResponse<RecommendationWindow, RecommendationAlternative> {
+  tipo_recomendacion: 'siembra';
+  cultivo: string;
 }
 
 export interface HealthStatusResponse {
   status?: string;
   environment?: string;
   use_mock_data?: boolean;
-  [key: string]: unknown;
-}
-
-export interface ModelsDashboardState {
-  cache_connected?: boolean;
-  models?: Record<string, ModelStatus>;
   [key: string]: unknown;
 }

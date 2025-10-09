@@ -1,10 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { ApiService } from '@core/services/api.service';
 import { RecommendationsService } from '@core/services/recommendations.service';
 import {
-  Lote,
   RecommendationAlternative,
   RecommendationWindow,
   SiembraRecommendationRequest,
@@ -23,35 +21,20 @@ export class RecomendacionesComponent implements OnInit {
   isLoading = false;
   result: SiembraRecommendationResponse | null = null;
   error: string | null = null;
-  lotes: Lote[] = [];
 
   // Debe coincidir con los permitidos por el backend
   readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada'];
 
   constructor(
     private readonly fb: FormBuilder,
-    private readonly apiService: ApiService,
     private readonly recommendationsService: RecommendationsService
   ) {
     this.recommendationForm = this.createForm();
   }
 
-  ngOnInit(): void {
-    this.loadLotes();
-  }
+  ngOnInit(): void {}
 
-  resetForm(): void {
-    const current = this.recommendationForm.value;
-    this.recommendationForm.reset({
-      loteId: current.loteId ?? 'lote-001',
-      clienteId: current.clienteId ?? 'cliente-001',
-      cultivo: this.cultivos[0],
-      campana: this.defaultCampana,
-      fechaConsulta: this.getTodayIso()
-    });
-    this.recommendationForm.markAsPristine();
-    this.recommendationForm.markAsUntouched();
-  }
+  // resetForm button removed; keeping minimal form inputs
 
   onCultivoSelect(cultivo: string): void {
     this.recommendationForm.patchValue({ cultivo });
@@ -111,7 +94,7 @@ export class RecomendacionesComponent implements OnInit {
   }
 
   trackByAlternative(_: number, item: RecommendationAlternative): string {
-    return `${item.fecha_optima}-${item.justificacion ?? 'alt'}`;
+    return `${item.fecha}-${item.confianza}`;
   }
 
   formatDateTime(value: string): string {
@@ -127,44 +110,22 @@ export class RecomendacionesComponent implements OnInit {
     return this.fb.group({
       // Usar UUIDs válidos por defecto para evitar 422
       loteId: ['123e4567-e89b-12d3-a456-426614174000', Validators.required],
-      clienteId: ['123e4567-e89b-12d3-a456-426614174001', Validators.required],
       cultivo: [this.cultivos[0], Validators.required],
-      campana: [this.defaultCampana, Validators.required],
-      fechaConsulta: [this.getTodayIso(), Validators.required]
-    });
-  }
-
-  private loadLotes(): void {
-    this.apiService.getLotes().subscribe({
-      next: (data) => {
-        this.lotes = data ?? [];
-        if (this.lotes.length > 0) {
-          const firstLote = this.lotes[0];
-          this.recommendationForm.patchValue({
-            loteId: firstLote.id,
-            clienteId: firstLote.cliente_id
-          });
-        } else {
-          // Si no hay lotes (no hay endpoint mock), mantener UUIDs válidos
-        }
-      },
-      error: (err) => {
-        console.error('Error loading lotes:', err);
-        // Mantener los UUIDs por defecto
-      }
+      campana: [this.defaultCampana, Validators.required]
     });
   }
 
   private buildRequestPayload(): SiembraRecommendationRequest {
-    const { loteId, clienteId, cultivo, campana, fechaConsulta } = this.recommendationForm.value;
-    const fecha = fechaConsulta ? new Date(fechaConsulta) : new Date();
+    const { loteId, cultivo, campana } = this.recommendationForm.value;
+    const fecha = new Date();
 
     return {
       lote_id: loteId,
-      cliente_id: clienteId,
       cultivo,
       campana,
-      fecha_consulta: fecha.toISOString()
+      fecha_consulta: fecha.toISOString(),
+      // por ahora se envía un cliente fijo; luego vendrá de la sesión
+      cliente_id: '123e4567-e89b-12d3-a456-426614174001'
     };
   }
 

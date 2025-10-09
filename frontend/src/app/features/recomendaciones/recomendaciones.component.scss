@@ -391,33 +391,51 @@
     display: grid;
     gap: 0.5rem;
 
-    header {
+    .alt-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.8rem;
-      letter-spacing: 0.05rem;
-      text-transform: uppercase;
     }
 
-    .alt-badge {
-      font-weight: 700;
-      color: var(--primary-color);
-    }
-
-    .alt-confidence {
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
-    .alt-window {
+    .alt-date {
       font-size: 1rem;
-      font-weight: 600;
+      font-weight: 700;
     }
 
-    .alt-justification {
-      margin: 0;
-      color: var(--text-secondary);
+    .alt-confidence-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 10px;
+      background: rgba(25, 118, 210, 0.12);
+      color: var(--primary-color);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .alt-pros-cons {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.35rem 0 0 0;
+      padding: 0;
+      list-style: none;
+
+      li {
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(76, 175, 80, 0.12);
+        color: var(--success);
+        font-size: 0.8rem;
+      }
+    }
+
+    .chip-list-warn li {
+      background: rgba(244, 67, 54, 0.12);
+      color: var(--error);
     }
   }
 

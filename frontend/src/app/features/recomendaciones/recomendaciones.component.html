@@ -14,14 +14,6 @@
         <span class="metric-label">Cultivos soportados</span>
         <span class="metric-value">{{ cultivos.length }}</span>
       </div>
-      <div class="metric-tile">
-        <span class="metric-label">Fecha de consulta</span>
-        <span class="metric-value">{{ recommendationForm.value.fechaConsulta | date: 'd MMM' }}</span>
-      </div>
-      <div class="metric-tile" *ngIf="result">
-        <span class="metric-label">Confianza</span>
-        <span class="metric-value">{{ result.nivel_confianza * 100 | number: '1.0-0' }}%</span>
-      </div>
     </div>
   </header>
 
@@ -32,24 +24,12 @@
           <h2>Configura la consulta</h2>
           <p>Define la campana, lote y cultivo antes de solicitar la recomendacion.</p>
         </div>
-        <button type="button" class="btn btn-ghost" (click)="resetForm()">
-          Restablecer
-        </button>
       </header>
 
       <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
         <div class="field-group">
-          <label for="loteId">Lote</label>
-          <select id="loteId" formControlName="loteId">
-            <option *ngFor="let lote of lotes" [value]="lote.id">
-              {{ lote.nombre }} - {{ lote.superficie_ha | number: '1.0-1' }} ha
-            </option>
-          </select>
-        </div>
-
-        <div class="field-group">
-          <label for="clienteId">Cliente</label>
-          <input id="clienteId" type="text" formControlName="clienteId" placeholder="Ej: cliente-001" />
+          <label for="loteId">Lote (UUID)</label>
+          <input id="loteId" type="text" formControlName="loteId" placeholder="123e4567-e89b-12d3-a456-426614174000" />
         </div>
 
         <div class="field-group">
@@ -72,10 +52,7 @@
           <input id="campana" type="text" formControlName="campana" placeholder="2024/2025" />
         </div>
 
-        <div class="field-group">
-          <label for="fechaConsulta">Fecha de consulta</label>
-          <input id="fechaConsulta" type="date" formControlName="fechaConsulta" />
-        </div>
+        
 
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" [disabled]="isLoading || recommendationForm.invalid">
@@ -104,6 +81,7 @@
           <div>
             <span class="pill">{{ result.tipo_recomendacion | titlecase }}</span>
             <h2>Plan recomendado para el lote {{ result.lote_id }}</h2>
+            <p class="result-subtitle">Cultivo: {{ result.cultivo | titlecase }}</p>
           </div>
           <div class="confidence-badge" [ngClass]="getConfidenceClass(result.nivel_confianza)">
             <span>{{ getConfidenceLabel(result.nivel_confianza) }}</span>
@@ -136,12 +114,24 @@
             <h3>Alternativas</h3>
             <div class="alternative-grid">
               <div class="alternative-card" *ngFor="let alt of result.alternativas; trackBy: trackByAlternative">
-                <header>
-                  <span class="alt-badge">{{ alt.etiqueta || 'Alternativa' }}</span>
-                  <span class="alt-confidence">{{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+                <header class="alt-header">
+                  <span class="alt-date">{{ formatDate(alt.fecha) }}</span>
+                  <span class="alt-confidence-badge">{{ alt.confianza * 100 | number: '1.0-0' }}%</span>
                 </header>
-                <p class="alt-window">{{ formatVentana(alt.ventana) }}</p>
-                <p *ngIf="alt.justificacion" class="alt-justification">{{ alt.justificacion }}</p>
+                <div class="alt-pros-cons">
+                  <div *ngIf="alt.pros?.length">
+                    <span class="label">Pros</span>
+                    <ul class="chip-list">
+                      <li *ngFor="let it of alt.pros">{{ it }}</li>
+                    </ul>
+                  </div>
+                  <div *ngIf="alt.contras?.length">
+                    <span class="label">Contras</span>
+                    <ul class="chip-list chip-list-warn">
+                      <li *ngFor="let it of alt.contras">{{ it }}</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </article>

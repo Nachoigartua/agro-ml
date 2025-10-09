@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .controllers.recommendations_controller import router as recommendations_router
+from .controllers.health_controller import router as health_router
 from .middleware.auth import AuthMiddleware
 
 
@@ -27,3 +28,4 @@ app.add_middleware(
 app.add_middleware(AuthMiddleware)
 
 app.include_router(recommendations_router)
+app.include_router(health_router)
