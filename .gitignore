@@ -81,3 +81,17 @@ backend/api/.env
 
 # HTML coverage reports
 htmlcov/
+
+# Angular/Node frontend artifacts
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
+frontend/coverage/
+frontend/.eslintcache
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/.pnpm-store/
+frontend/.env
+frontend/.env.*

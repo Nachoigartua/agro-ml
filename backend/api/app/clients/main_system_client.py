@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from typing import Dict, Optional
-from uuid import UUID
 
 from fastapi import Depends, Request
 
@@ -26,7 +25,7 @@ class MainSystemAPIClient:
             return self._request.state.user.get("token")
         return None
         
-    async def get_lote_data(self, lote_id: UUID) -> Dict:
+    async def get_lote_data(self, lote_id: str) -> Dict:
         """Obtiene datos del lote desde el sistema principal."""
         #TODO: Implementar la llamada real a la API del sistema principal
         return
