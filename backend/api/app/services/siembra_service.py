@@ -12,9 +12,9 @@ import pandas as pd
 from ..clients.main_system_client import MainSystemAPIClient
 from ..core.logging import get_logger
 from ..dto.siembra import (
-    SiembraRecommendationDetail,
     SiembraRecommendationResponse,
     SiembraRequest,
+    RecomendacionPrincipalSiembra,
 )
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
@@ -84,14 +84,26 @@ class SiembraRecommendationService:
         target_year = self._resolve_target_year(request)
         fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
 
-        recomendacion = SiembraRecommendationDetail(
-            cultivo=request.cultivo,
-            fecha_siembra=fecha_optima,
+        ventana = [
+            (fecha_optima - timedelta(days=2)).strftime("%d-%m-%Y"),
+            (fecha_optima + timedelta(days=2)).strftime("%d-%m-%Y"),
+        ]
+        recomendacion_principal = RecomendacionPrincipalSiembra(
+            fecha_optima=fecha_optima.strftime("%d-%m-%Y"),
+            ventana=ventana,
+            confianza=1.0,
         )
 
         return SiembraRecommendationResponse(
             lote_id=request.lote_id,
-            recomendacion_principal=recomendacion,
+            tipo_recomendacion="siembra",
+            recomendacion_principal=recomendacion_principal,
+            alternativas=[],
+            nivel_confianza=1.0,
+            factores_considerados=[],
+            costos_estimados={},
+            fecha_generacion=datetime.now(),
+            cultivo=request.cultivo,
         )
 
     def _build_feature_row(self, lote_data: Dict[str, Any]) -> Dict[str, Any]:

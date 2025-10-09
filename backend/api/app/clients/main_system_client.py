@@ -49,5 +49,6 @@ class MainSystemAPIClient:
     async def get_lote_data(self, lote_id: str) -> Dict:
         """Obtiene datos del lote desde el sistema principal."""
         #TODO: Implementar la llamada real a la API del sistema principal
-        return
+        return LOTES_DB.get(lote_id)
+
         
