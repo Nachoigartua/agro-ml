@@ -28,8 +28,11 @@
 
       <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
         <div class="field-group">
-          <label for="loteId">Lote (UUID)</label>
-          <input id="loteId" type="text" formControlName="loteId" placeholder="123e4567-e89b-12d3-a456-426614174000" />
+         <label for="loteId">Lote id</label>
+         <select id="loteId" formControlName="loteId">
+          <option value="lote-001">lote-001</option>
+          <option value="lote-002">lote-002</option>
+         </select>
         </div>
 
         <div class="field-group">
@@ -49,7 +52,11 @@
 
         <div class="field-group">
           <label for="campana">Campaña</label>
-          <input id="campana" type="text" formControlName="campana" placeholder="2024/2025" />
+          <select id="campana" formControlName="campana">
+            <option value="2025/2026">2025/2026</option>
+            <option value="2026/2027">2026/2027</option>
+            <option value="2027/2028">2027/2028</option>
+          </select>
         </div>
 
         
@@ -143,7 +150,7 @@
             </ul>
           </article>
 
-          <article class="result-card" *ngIf="result.costos_estimados">
+          <article class="result-card" *ngIf="result.costos_estimados && (result.costos_estimados | keyvalue).length">
             <h3>Costos estimados</h3>
             <dl class="costs-grid">
               <div *ngFor="let item of result.costos_estimados | keyvalue">

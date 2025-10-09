@@ -29,23 +29,21 @@ async def obtener_recomendacion_siembra(
 
     try:
         response = await service.generate_recommendation(payload)
-        logger.info(
-            "Recomendacion de siembra generada",
-            extra={
-                "lote_id": str(response.lote_id),
-                "confianza": response.nivel_confianza,
-            },
-        )
         return response
     except ValueError as exc:
         logger.warning(
             "Error de validacion en recomendacion de siembra",
             extra={"error": str(exc)},
         )
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        logger.info(f"ValueError: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error de validacion: {exc}",
+        ) from exc
     except Exception as exc:  # pragma: no cover
         logger.exception("Error inesperado al generar recomendacion de siembra")
+        logger.info(f"Exception: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo generar la recomendacion de siembra",
+            detail=f"No se pudo generar la recomendacion de siembra: {exc}",
         ) from exc

@@ -7,12 +7,12 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@postgres:5432/ml_agro
-      - REDIS_URL=redis://redis:6379
+      - AGRO_ML_PROJECT_ROOT=/workspace
     depends_on:
       - postgres
     volumes:
-      - ./models:/app/models
       - ./backend/api:/app
+      - ./backend:/workspace/backend
 
   frontend:
     build:

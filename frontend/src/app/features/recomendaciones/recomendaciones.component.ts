@@ -15,7 +15,7 @@ import {
   styleUrls: ['./recomendaciones.component.scss']
 })
 export class RecomendacionesComponent implements OnInit {
-  private readonly defaultCampana = '2024/2025';
+  private readonly defaultCampana = '2025/2026';
 
   recommendationForm: FormGroup;
   isLoading = false;
@@ -109,7 +109,7 @@ export class RecomendacionesComponent implements OnInit {
   private createForm(): FormGroup {
     return this.fb.group({
       // Usar UUIDs válidos por defecto para evitar 422
-      loteId: ['123e4567-e89b-12d3-a456-426614174000', Validators.required],
+      loteId: ['lote-001', Validators.required],
       cultivo: [this.cultivos[0], Validators.required],
       campana: [this.defaultCampana, Validators.required]
     });

@@ -3,6 +3,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 import pytest
 import httpx
+from app.clients.main_system_client import MainSystemAPIClient
 
 from app.services.siembra_service import SiembraRecommendationService
 from app.dto.siembra import SiembraRequest
@@ -58,3 +59,46 @@ def test_generate_recommendation_propagates_503_from_client():
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
         asyncio.run(service.generate_recommendation(request))
     assert excinfo.value.response.status_code == 503
+
+
+def test_service_returns_expected_shape():
+    # Usa el cliente mock real para validar shape con datos de lote-001
+    request = SiembraRequest(
+        lote_id="lote-001",
+        cliente_id="cliente-001",
+        cultivo="trigo",
+        campana="2025/2026",
+        fecha_consulta=datetime(2025, 10, 4),
+    )
+    service = SiembraRecommendationService(
+        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+    )
+
+    response = asyncio.run(service.generate_recommendation(request))
+
+    assert response.lote_id == request.lote_id
+    assert response.tipo_recomendacion == "siembra"
+    assert response.cultivo == request.cultivo
+    assert isinstance(response.recomendacion_principal.fecha_optima, str)
+    assert isinstance(response.recomendacion_principal.ventana, list)
+    assert 0.0 <= response.recomendacion_principal.confianza <= 1.0
+
+
+def test_service_handles_other_lote():
+    # Valida con lote-002 y cultivo distinto
+    request = SiembraRequest(
+        lote_id="lote-002",
+        cliente_id="cliente-002",
+        cultivo="soja",
+        campana="2025/2026",
+        fecha_consulta=datetime(2025, 10, 4),
+    )
+    service = SiembraRecommendationService(
+        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+    )
+
+    response = asyncio.run(service.generate_recommendation(request))
+
+    assert response.lote_id == request.lote_id
+    assert response.cultivo == request.cultivo
+    assert isinstance(response.recomendacion_principal.fecha_optima, str)
