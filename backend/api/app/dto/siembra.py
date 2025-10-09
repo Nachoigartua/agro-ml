@@ -1,35 +1,41 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Dict, List, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 ALLOWED_CULTIVOS = {"trigo", "soja", "maiz", "cebada"}
 
 
-class SiembraRecommendationDetail(BaseModel):
-    """Detalle de la recomendación de siembra."""
+class RecomendacionResponse(BaseModel):
+    """Respuesta base para cualquier tipo de recomendación."""
 
-    cultivo: str
-    fecha_siembra: datetime
+    lote_id: str
+    tipo_recomendacion: str
+    recomendacion_principal: Dict[str, Any]
+    alternativas: List[Dict[str, Any]] = Field(default_factory=list)
+    nivel_confianza: float = Field(ge=0.0, le=1.0)
+    factores_considerados: List[str] = Field(default_factory=list)
+    costos_estimados: Dict[str, float] = Field(default_factory=dict)
+    fecha_generacion: datetime
+
+
+class RecomendacionPrincipalSiembra(BaseModel):
+    """Estructura de la recomendación principal para siembra."""
+
+    fecha_optima: str
+    ventana: List[str]
+    confianza: float = Field(ge=0.0, le=1.0)
 
 
 class SiembraRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
 
     lote_id: str
-    cliente_id: str
     cultivo: str
     campana: str
     fecha_consulta: datetime
-
-    @field_validator("lote_id", "cliente_id")
-    @classmethod
-    def validate_identifier(cls, value: str) -> str:
-        if not value or not value.strip():
-            raise ValueError("identificador no puede estar vacio")
-        return value
+    cliente_id: str
 
     @field_validator("cultivo")
     @classmethod
@@ -41,9 +47,11 @@ class SiembraRequest(BaseModel):
         return normalised
 
 
-class SiembraRecommendationResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+class SiembraRecommendationResponse(RecomendacionResponse):
+    """Respuesta de recomendación de siembra.
 
-    lote_id: str
-    tipo_recomendacion: Literal["siembra"] = Field(default="siembra")
-    recomendacion_principal: SiembraRecommendationDetail
+    Extiende la respuesta base agregando el cultivo como metadato de alto nivel.
+    """
+
+    cultivo: str
+    recomendacion_principal: RecomendacionPrincipalSiembra

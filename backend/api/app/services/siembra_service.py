@@ -1,4 +1,4 @@
-"""Servicio simplificado de recomendaciones de siembra."""
+﻿"""Servicio simplificado de recomendaciones de siembra."""
 from __future__ import annotations
 
 import os

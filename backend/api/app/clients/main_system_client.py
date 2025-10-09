@@ -1,7 +1,7 @@
 ﻿"""Cliente para la API del sistema principal (mock local)."""
 from __future__ import annotations
 
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 from fastapi import Request
 
@@ -45,12 +45,9 @@ class MainSystemAPIClient:
         if self._request and getattr(self._request.state, "user", None):
             return self._request.state.user.get("token")
         return None
-
-    async def get_lote_data(self, lote_id: Union[str, object]) -> Dict[str, object]:
-        """Retorna la información simulada de un lote."""
-
-        lote_key = str(lote_id)
-        if lote_key not in LOTES_DB:
-            logger.warning("lote_not_found", lote_id=lote_key)
-            raise ValueError(f"Lote {lote_key} no encontrado")
-        return LOTES_DB[lote_key]
+        
+    async def get_lote_data(self, lote_id: str) -> Dict:
+        """Obtiene datos del lote desde el sistema principal."""
+        #TODO: Implementar la llamada real a la API del sistema principal
+        return
+        
