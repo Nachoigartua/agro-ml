@@ -12,6 +12,7 @@ import pandas as pd
 
 from ..clients.main_system_client import MainSystemAPIClient
 from ..core.logging import get_logger
+from ..db.persistence import PersistenceContext
 from ..dto.siembra import (
     SiembraRecommendationResponse,
     SiembraRequest,
@@ -37,16 +38,19 @@ class SiembraRecommendationService:
         main_system_client: MainSystemAPIClient,
         *,
         model_path: Optional[Path | str] = None,
+        persistence_context: PersistenceContext,
     ) -> None:
         self.main_system_client = main_system_client
         self.model_path = Path(model_path) if model_path else DEFAULT_MODEL_PATH
         self.logger = get_logger("siembra_service")
+        self._persistence_context = persistence_context
 
         self._model = None
         self._preprocessor = None
         self._feature_order: list[str] = []
         self._numeric_defaults: Dict[str, float] = {}
         self._categorical_defaults: Dict[str, str] = {}
+        self._model_metadata: Dict[str, Any] = {}
 
         self._load_model()
 
@@ -60,9 +64,9 @@ class SiembraRecommendationService:
         self._model = model
         self._preprocessor = preprocessor
 
-        metadata = metadata or {}
-        self._feature_order = list(metadata.get("features", []))
-        defaults = metadata.get("feature_defaults", {})
+        self._model_metadata = metadata or {}
+        self._feature_order = list(self._model_metadata.get("features", []))
+        defaults = self._model_metadata.get("feature_defaults", {})
         self._numeric_defaults = {
             key: float(value) for key, value in defaults.get("numeric", {}).items()
         }
@@ -74,7 +78,8 @@ class SiembraRecommendationService:
             raise ValueError("El modelo cargado no contiene el orden de features esperado")
 
     async def generate_recommendation(
-        self, request: SiembraRequest
+        self,
+        request: SiembraRequest,
     ) -> SiembraRecommendationResponse:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
@@ -95,7 +100,7 @@ class SiembraRecommendationService:
             confianza=1.0,
         )
 
-        return SiembraRecommendationResponse(
+        response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
@@ -105,6 +110,46 @@ class SiembraRecommendationService:
             costos_estimados={},
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
+        )
+
+        await self._persist_recommendation(request, response)
+
+        return response
+
+    async def _persist_recommendation(
+        self,
+        request: SiembraRequest,
+        response: SiembraRecommendationResponse,
+    ) -> None:
+        """Guarda la predicción generada, fallando si no hay repositorio disponible."""
+
+        if self._persistence_context.predicciones is None:
+            raise RuntimeError(
+                "El contexto de persistencia no cuenta con un repositorio de predicciones configurado."
+            )
+
+        ventana = response.recomendacion_principal.ventana
+        fecha_validez_desde = None
+        fecha_validez_hasta = None
+        if len(ventana) == 2:
+            try:
+                fecha_validez_desde = datetime.strptime(ventana[0], "%d-%m-%Y").date()
+                fecha_validez_hasta = datetime.strptime(ventana[1], "%d-%m-%Y").date()
+            except ValueError:
+                self.logger.warning("No se pudo parsear la ventana de la recomendación a fechas válidas.", extra={"ventana": ventana})
+
+        await self._persistence_context.predicciones.save(
+            lote_id=request.lote_id,
+            cliente_id=request.cliente_id,
+            tipo_prediccion=response.tipo_recomendacion,
+            cultivo=response.cultivo,
+            recomendacion_principal=response.recomendacion_principal.model_dump(mode="json"),
+            alternativas=[dict(alt) for alt in response.alternativas],
+            nivel_confianza=response.nivel_confianza,
+            datos_entrada=request.model_dump(mode="json"),
+            modelo_version=self._model_metadata.get("model_version") or self._model_metadata.get("version"),
+            fecha_validez_desde=fecha_validez_desde,
+            fecha_validez_hasta=fecha_validez_hasta,
         )
 
     def _build_feature_row(self, lote_data: Dict[str, Any]) -> Dict[str, Any]:

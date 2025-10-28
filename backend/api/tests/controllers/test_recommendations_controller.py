@@ -17,7 +17,7 @@ def _auth_headers() -> dict[str, str]:
 
 def test_siembra_recommendation_happy_path(client: TestClient):
     payload = {
-        "lote_id": "lote-001",
+        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
         "cliente_id": str(uuid4()),
         "cultivo": "trigo",
         "campana": "2024/2025",
@@ -55,7 +55,7 @@ def test_siembra_recommendation_happy_path(client: TestClient):
 
 def test_siembra_recommendation_invalid_body_returns_422(client: TestClient):
     payload = {
-        "lote_id": "lote-001",
+        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
         "cliente_id": str(uuid4()),
         "cultivo": "cultivo_invalido",
         "campana": "2024/2025",

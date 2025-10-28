@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Dict, Optional
+from uuid import UUID
 
 from fastapi import Request
 
@@ -12,8 +13,8 @@ logger = get_logger("main_system_client")
 
 
 LOTES_DB: Dict[str, Dict[str, object]] = {
-    "lote-001": {
-        "lote_id": "lote-001",
+    "c3f2f1ab-ca2e-4f8b-9819-377102c4d889": {
+        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
         "nombre": "Lote Pergamino Norte",
         "establecimiento_id": "est-123",
         "superficie_ha": 120,
@@ -34,8 +35,8 @@ LOTES_DB: Dict[str, Dict[str, object]] = {
         },
         "cultivo_anterior": "soja",
     },
-    "lote-002": {
-        "lote_id": "lote-002",
+    "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30": {
+        "lote_id": "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30",
         "nombre": "Lote Sur Córdoba",
         "ubicacion": {"latitud": -33.6, "longitud": -63.8},
         "suelo": {
