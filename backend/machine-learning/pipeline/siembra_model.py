@@ -22,26 +22,28 @@ FEATURES: Tuple[str, ...] = (
     "temp_media_marzo",
     "temp_media_abril",
     "temp_media_mayo",
-    "precipitacion_marzo",
-    "precipitacion_abril",
-    "precipitacion_mayo",
+    "precipitacion_media_marzo",
+    "precipitacion_media_abril",
+    "precipitacion_media_mayo",
     "tipo_suelo",
     "ph_suelo",
-    "materia_organica_pct",
+    "materia_organica",
     "cultivo_anterior",
+    "rendimiento_anterior",
 )
-TARGET: str = "dia_del_ano"
+TARGET: str = "dia_del_a\u00f1o"
 NUMERIC_FEATURES: Tuple[str, ...] = (
     "latitud",
     "longitud",
     "temp_media_marzo",
     "temp_media_abril",
     "temp_media_mayo",
-    "precipitacion_marzo",
-    "precipitacion_abril",
-    "precipitacion_mayo",
+    "precipitacion_media_marzo",
+    "precipitacion_media_abril",
+    "precipitacion_media_mayo",
     "ph_suelo",
-    "materia_organica_pct",
+    "materia_organica",
+    "rendimiento_anterior",
 )
 CATEGORICAL_FEATURES: Tuple[str, ...] = (
     "tipo_suelo",
@@ -78,27 +80,46 @@ def ensure_parent_dir(path: Path) -> None:
 
 
 def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Garantiza que ``dia_del_ano`` exista derivando datos reales."""
+    """Garantiza que ``dia_del_año`` exista derivando datos reales."""
 
     if TARGET in df.columns:
+        serie = df[TARGET]
+        if pd.api.types.is_numeric_dtype(serie):
+            valores = pd.to_numeric(serie, errors="coerce").round().astype("Int64")
+        else:
+            valores = pd.to_numeric(serie, errors="coerce")
+            if valores.isna().any():
+                fechas = pd.to_datetime(serie, errors="coerce", utc=False)
+                if fechas.isna().any():
+                    raise ValueError(
+                        f"No se pudo normalizar la columna {TARGET} a un valor numerico valido"
+                    )
+                valores = fechas.dt.dayofyear.astype("Int64")
+        if valores.isna().any():
+            raise ValueError(
+                f"Existen valores nulos en la columna objetivo {TARGET} luego de normalizarla"
+            )
+        if not valores.between(1, 366).all():
+            raise ValueError(f"Los valores presentes en {TARGET} estan fuera del rango valido")
+        df[TARGET] = valores.astype(int)
         return df
 
     fecha_col = "fecha_siembra_estimada"
     if fecha_col not in df.columns:
         raise ValueError(
-            "El dataset real debe incluir la columna fecha_siembra_estimada para derivar dia_del_ano"
+            f"El dataset real debe incluir la columna {fecha_col} para derivar {TARGET}"
         )
 
-    fechas = pd.to_datetime(df[fecha_col], errors='coerce', utc=False)
+    fechas = pd.to_datetime(df[fecha_col], errors="coerce", utc=False)
     if fechas.isna().any():
         raise ValueError(
-            "No se pudo convertir fecha_siembra_estimada a fechas validas para todas las filas"
+            f"No se pudo convertir {fecha_col} a fechas validas para todas las filas"
         )
 
     df[TARGET] = fechas.dt.dayofyear.astype(int)
     valores = df[TARGET]
     if not valores.between(1, 366).all():
-        raise ValueError("Los valores generados para dia_del_ano estan fuera del rango valido")
+        raise ValueError(f"Los valores generados para {TARGET} estan fuera del rango valido")
     return df
 
 
@@ -109,12 +130,15 @@ def load_dataset(path: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"Dataset real no encontrado en {path}")
 
     df = pd.read_csv(path)
+
     columnas_a_descartar = [col for col in IGNORED_COLUMNS if col in df.columns]
     if columnas_a_descartar:
         df = df.drop(columns=columnas_a_descartar)
 
-    df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
-    df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
+    if "tipo_suelo" in df.columns:
+        df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
+    if "cultivo_anterior" in df.columns:
+        df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
 
     df = _ensure_target_column(df)
 
