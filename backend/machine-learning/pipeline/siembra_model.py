@@ -31,7 +31,7 @@ FEATURES: Tuple[str, ...] = (
     "cultivo_anterior",
     "rendimiento_anterior",
 )
-TARGET: str = "dia_del_a\u00f1o"
+TARGET: str = "dia_del_año"
 NUMERIC_FEATURES: Tuple[str, ...] = (
     "latitud",
     "longitud",
@@ -75,33 +75,12 @@ class TrainingArtifacts:
 
 def ensure_parent_dir(path: Path) -> None:
     """Crea el directorio padre para ``path`` si todavia no existe."""
-
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
     """Garantiza que ``dia_del_año`` exista derivando datos reales."""
-
     if TARGET in df.columns:
-        serie = df[TARGET]
-        if pd.api.types.is_numeric_dtype(serie):
-            valores = pd.to_numeric(serie, errors="coerce").round().astype("Int64")
-        else:
-            valores = pd.to_numeric(serie, errors="coerce")
-            if valores.isna().any():
-                fechas = pd.to_datetime(serie, errors="coerce", utc=False)
-                if fechas.isna().any():
-                    raise ValueError(
-                        f"No se pudo normalizar la columna {TARGET} a un valor numerico valido"
-                    )
-                valores = fechas.dt.dayofyear.astype("Int64")
-        if valores.isna().any():
-            raise ValueError(
-                f"Existen valores nulos en la columna objetivo {TARGET} luego de normalizarla"
-            )
-        if not valores.between(1, 366).all():
-            raise ValueError(f"Los valores presentes en {TARGET} estan fuera del rango valido")
-        df[TARGET] = valores.astype(int)
         return df
 
     fecha_col = "fecha_siembra_estimada"
@@ -117,15 +96,11 @@ def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     df[TARGET] = fechas.dt.dayofyear.astype(int)
-    valores = df[TARGET]
-    if not valores.between(1, 366).all():
-        raise ValueError(f"Los valores generados para {TARGET} estan fuera del rango valido")
     return df
 
 
 def load_dataset(path: Path) -> pd.DataFrame:
     """Carga el dataset real y completa la columna objetivo si hace falta."""
-
     if not path.exists():
         raise FileNotFoundError(f"Dataset real no encontrado en {path}")
 
@@ -135,6 +110,7 @@ def load_dataset(path: Path) -> pd.DataFrame:
     if columnas_a_descartar:
         df = df.drop(columns=columnas_a_descartar)
 
+    # Normalizacion de strings
     if "tipo_suelo" in df.columns:
         df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
     if "cultivo_anterior" in df.columns:
@@ -153,7 +129,6 @@ def load_dataset(path: Path) -> pd.DataFrame:
 
 def create_preprocessor() -> ColumnTransformer:
     """Construye el pipeline de preprocesamiento para las features del modelo."""
-
     numeric_pipeline = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
@@ -176,7 +151,6 @@ def create_preprocessor() -> ColumnTransformer:
 
 def compute_feature_defaults(df: pd.DataFrame) -> Dict[str, Dict[str, float | str]]:
     """Calcula valores promedio o moda para cubrir datos faltantes en produccion."""
-
     numeric_defaults = {
         column: float(df[column].mean())
         for column in NUMERIC_FEATURES
@@ -193,7 +167,6 @@ def compute_feature_defaults(df: pd.DataFrame) -> Dict[str, Dict[str, float | st
 
 def train_model(config: TrainingConfig) -> TrainingArtifacts:
     """Entrena el modelo RandomForest usando exclusivamente el dataset real."""
-
     df = load_dataset(config.data_path)
 
     X = df.loc[:, list(FEATURES)]
@@ -254,7 +227,6 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
 
 def save_metrics(metrics: Dict[str, float], path: Path) -> None:
     """Guarda las metricas de evaluacion en formato JSON para auditoria."""
-
     import json
 
     ensure_parent_dir(path)

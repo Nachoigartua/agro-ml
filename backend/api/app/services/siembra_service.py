@@ -77,24 +77,16 @@ class SiembraRecommendationService:
         self, request: SiembraRequest
     ) -> SiembraRecommendationResponse:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
-        feature_row = self._build_feature_row(request, lote_data)
+        feature_row = self._build_feature_row(lote_data)
+
+        # Sobrescribir el cultivo anterior con el cultivo actual de la request
+        feature_row["cultivo_anterior"] = request.cultivo
 
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
         transformed = self._preprocessor.transform(dataframe)
         predicted_day = self._predict_day_of_year(transformed)
-
-        start_year, end_year = self._parse_campaign_years(request)
-        fecha_optima = self._day_of_year_to_date(predicted_day, start_year)
-
-        consulta = request.fecha_consulta
-        if consulta is not None:
-            if consulta.tzinfo is None:
-                consulta = consulta.replace(tzinfo=timezone.utc)
-            else:
-                consulta = consulta.astimezone(timezone.utc)
-            if fecha_optima.date() <= consulta.date():
-                target_year = end_year if end_year is not None else start_year + 1
-                fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
+        target_year = self._resolve_target_year_from_campaign(request)
+        fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
 
         ventana = [
             (fecha_optima - timedelta(days=2)).strftime("%d-%m-%Y"),
@@ -118,17 +110,17 @@ class SiembraRecommendationService:
             cultivo=request.cultivo,
         )
 
-    def _build_feature_row(self, request: SiembraRequest, lote_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_feature_row(self, lote_data: Dict[str, Any]) -> Dict[str, Any]:
         row: Dict[str, Any] = {}
         for feature in self._feature_order:
-            value = self._extract_feature_value(feature, request, lote_data)
+            value = self._extract_feature_value(feature, lote_data)
             if value is None:
                 value = self._default_for(feature)
             row[feature] = value
         return row
 
     def _extract_feature_value(
-        self, feature: str, request: SiembraRequest, lote_data: Dict[str, Any]
+        self, feature: str, lote_data: Dict[str, Any]
     ) -> Optional[Any]:
         ubicacion = lote_data.get("ubicacion") or {}
         suelo = lote_data.get("suelo") or {}
@@ -143,16 +135,12 @@ class SiembraRecommendationService:
         if feature == "ph_suelo":
             return self._as_float(suelo.get("ph_suelo"))
         if feature == "materia_organica":
-            origen = suelo.get("materia_organica")
-            if origen is None:
-                origen = suelo.get("materia_organica_pct")
+            origen = suelo.get("materia_organica") or suelo.get("materia_organica_pct")
             return self._as_float(origen)
         if feature.startswith("precipitacion_media_"):
-            clave_clima = feature.replace("precipitacion_media_", "precipitacion_")
-            return self._as_float(clima.get(clave_clima))
+            return self._as_float(clima.get(feature))
         if feature == "cultivo_anterior":
-            cultivo = request.cultivo or lote_data.get("cultivo_anterior")
-            return self._as_string(cultivo)
+            return None  # Se sobrescribe luego
 
         if feature in lote_data:
             return self._coerce_feature_value(feature, lote_data[feature])
@@ -183,36 +171,30 @@ class SiembraRecommendationService:
     def _clamp_day_of_year(self, value: float) -> int:
         day = int(round(value))
         if day < 1 or day > 365:
-            self.logger.warning(f"Prediccion fuera de rango: {day} (valor original: {value})")
+            self.logger.warning(f"Predicción fuera de rango: {day} (valor original: {value})")
         return day
 
-    def _parse_campaign_years(self, request: SiembraRequest) -> tuple[int, int | None]:
-        """Extrae los anios de la campania y valida su formato."""
-
-        campania = (request.campana or "").strip()
-        if not campania:
+    def _resolve_target_year_from_campaign(self, request: SiembraRequest) -> int:
+        """Determina el año objetivo desde `campana` dividiendo por '/'."""
+        campana = (request.campana or "").strip()
+        if not campana:
             raise ExternalCampaignNotFoundError(
-                "El campo 'campania' es requerido y no llego como correspondia"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
-        partes = [p.strip() for p in campania.split("/")]
+        partes = [p.strip() for p in campana.split("/")]
         if len(partes) < 2:
             raise ExternalCampaignNotFoundError(
-                "El campo 'campania' es requerido y no llego como correspondia"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
-        inicio, fin = partes[0], partes[1]
-        if not re.fullmatch(r"(?:19|20)\d{2}", inicio):
+        anio_str = partes[1]
+        if not re.fullmatch(r"(?:19|20)\d{2}", anio_str):
             raise ExternalCampaignNotFoundError(
-                "El campo 'campania' es requerido y no llego como correspondia"
-            )
-        if fin and not re.fullmatch(r"(?:19|20)\d{2}", fin):
-            raise ExternalCampaignNotFoundError(
-                "El campo 'campania' es requerido y no llego como correspondia"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
-        fin_int = int(fin) if fin else None
-        return int(inicio), fin_int
+        return int(anio_str)
 
     @staticmethod
     def _day_of_year_to_date(day_of_year: int, year: int) -> datetime:
