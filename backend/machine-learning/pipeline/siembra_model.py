@@ -22,27 +22,27 @@ FEATURES: Tuple[str, ...] = (
     "temp_media_marzo",
     "temp_media_abril",
     "temp_media_mayo",
-    "precipitacion_media_marzo",
-    "precipitacion_media_abril",
-    "precipitacion_media_mayo",
+    "precipitacion_marzo",
+    "precipitacion_abril",
+    "precipitacion_mayo",
     "tipo_suelo",
     "ph_suelo",
-    "materia_organica",
+    "materia_organica_pct",
     "cultivo_anterior",
     "rendimiento_anterior",
 )
-TARGET: str = "dia_del_año"
+TARGET: str = "dia_del_ano"
 NUMERIC_FEATURES: Tuple[str, ...] = (
     "latitud",
     "longitud",
     "temp_media_marzo",
     "temp_media_abril",
     "temp_media_mayo",
-    "precipitacion_media_marzo",
-    "precipitacion_media_abril",
-    "precipitacion_media_mayo",
+    "precipitacion_marzo",
+    "precipitacion_abril",
+    "precipitacion_mayo",
     "ph_suelo",
-    "materia_organica",
+    "materia_organica_pct",
     "rendimiento_anterior",
 )
 CATEGORICAL_FEATURES: Tuple[str, ...] = (
@@ -79,23 +79,26 @@ def ensure_parent_dir(path: Path) -> None:
 
 
 def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Garantiza que ``dia_del_año`` exista derivando datos reales."""
+    """Garantiza que ``dia_del_ano`` exista derivando datos reales."""
     if TARGET in df.columns:
         return df
 
     fecha_col = "fecha_siembra_estimada"
     if fecha_col not in df.columns:
         raise ValueError(
-            f"El dataset real debe incluir la columna {fecha_col} para derivar {TARGET}"
+            "El dataset real debe incluir la columna fecha_siembra_estimada para derivar dia_del_ano"
         )
 
-    fechas = pd.to_datetime(df[fecha_col], errors="coerce", utc=False)
+    fechas = pd.to_datetime(df[fecha_col], errors='coerce', utc=False)
     if fechas.isna().any():
         raise ValueError(
-            f"No se pudo convertir {fecha_col} a fechas validas para todas las filas"
+            "No se pudo convertir fecha_siembra_estimada a fechas validas para todas las filas"
         )
 
     df[TARGET] = fechas.dt.dayofyear.astype(int)
+    valores = df[TARGET]
+    if not valores.between(1, 366).all():
+        raise ValueError("Los valores generados para dia_del_ano estan fuera del rango valido")
     return df
 
 
@@ -105,16 +108,12 @@ def load_dataset(path: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"Dataset real no encontrado en {path}")
 
     df = pd.read_csv(path)
-
     columnas_a_descartar = [col for col in IGNORED_COLUMNS if col in df.columns]
     if columnas_a_descartar:
         df = df.drop(columns=columnas_a_descartar)
 
-    # Normalizacion de strings
-    if "tipo_suelo" in df.columns:
-        df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
-    if "cultivo_anterior" in df.columns:
-        df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
+    df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
+    df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
 
     df = _ensure_target_column(df)
 
@@ -228,7 +227,6 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
 def save_metrics(metrics: Dict[str, float], path: Path) -> None:
     """Guarda las metricas de evaluacion en formato JSON para auditoria."""
     import json
-
     ensure_parent_dir(path)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2)

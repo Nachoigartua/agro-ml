@@ -1,4 +1,4 @@
-latitud,longitud,temp_media_marzo,temp_media_abril,temp_media_mayo,precipitacion_media_marzo,precipitacion_media_abril,precipitacion_media_mayo,tipo_suelo,ph_suelo,materia_organica,cultivo_anterior,rendimiento_anterior,dia_del_año
+latitud,longitud,temp_media_marzo,temp_media_abril,temp_media_mayo,precipitacion_marzo,precipitacion_abril,precipitacion_mayo,tipo_suelo,ph_suelo,materia_organica_pct,cultivo_anterior,rendimiento_anterior,dia_del_ano
 -27.31135147,-61.2973954,27.7,22.52766667,14.5616129,4.109354839,6.379,0.9622580645,Franco limosa,7.45527458190918,3.0542658304146046,Maiz,5000,2024-10-14 00:00:00
 -27.29329007,-61.26099926,27.74096774,22.52767667,14.5616229,4.109364839,6.37901,0.9622680645,Franco limosa,7.263558864593506,3.3431912445750616,Maiz,3400,2024-10-08 00:00:00
 -27.30035425,-61.26078936,27.74097774,22.52768667,14.5616329,4.109374839,6.37902,0.9622780645,Franco limosa,7.263558864593506,1.832967040770586,Maiz,1800,2024-09-23 00:00:00

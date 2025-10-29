@@ -79,7 +79,7 @@ class SiembraRecommendationService:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
 
-        # Sobrescribir el cultivo anterior con el cultivo actual de la request
+        # Sobrescribir cultivo_anterior con el cultivo actual del request
         feature_row["cultivo_anterior"] = request.cultivo
 
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
@@ -134,13 +134,13 @@ class SiembraRecommendationService:
             return self._as_string(suelo.get("tipo_suelo"))
         if feature == "ph_suelo":
             return self._as_float(suelo.get("ph_suelo"))
-        if feature == "materia_organica":
-            origen = suelo.get("materia_organica") or suelo.get("materia_organica_pct")
+        if feature == "materia_organica_pct":
+            origen = suelo.get("materia_organica_pct") or suelo.get("materia_organica")
             return self._as_float(origen)
-        if feature.startswith("precipitacion_media_"):
+        if feature.startswith("precipitacion_"):
             return self._as_float(clima.get(feature))
         if feature == "cultivo_anterior":
-            return None  # Se sobrescribe luego
+            return None  # se sobrescribe luego con el cultivo del request
 
         if feature in lote_data:
             return self._coerce_feature_value(feature, lote_data[feature])
