@@ -78,32 +78,8 @@ def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _ensure_target_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Garantiza que ``dia_del_ano`` exista derivando datos reales."""
-    if TARGET in df.columns:
-        return df
-
-    fecha_col = "fecha_siembra_estimada"
-    if fecha_col not in df.columns:
-        raise ValueError(
-            "El dataset real debe incluir la columna fecha_siembra_estimada para derivar dia_del_ano"
-        )
-
-    fechas = pd.to_datetime(df[fecha_col], errors='coerce', utc=False)
-    if fechas.isna().any():
-        raise ValueError(
-            "No se pudo convertir fecha_siembra_estimada a fechas validas para todas las filas"
-        )
-
-    df[TARGET] = fechas.dt.dayofyear.astype(int)
-    valores = df[TARGET]
-    if not valores.between(1, 366).all():
-        raise ValueError("Los valores generados para dia_del_ano estan fuera del rango valido")
-    return df
-
-
 def load_dataset(path: Path) -> pd.DataFrame:
-    """Carga el dataset real y completa la columna objetivo si hace falta."""
+    """Carga el dataset real con la columna `dia_del_ano` ya numérica (verificamos que no queden nulos ni strings y que todos los valores estén en 1‑366)."""
     if not path.exists():
         raise FileNotFoundError(f"Dataset real no encontrado en {path}")
 
@@ -115,13 +91,20 @@ def load_dataset(path: Path) -> pd.DataFrame:
     df["tipo_suelo"] = df["tipo_suelo"].astype(str).str.strip().str.lower()
     df["cultivo_anterior"] = df["cultivo_anterior"].astype(str).str.strip().str.lower()
 
-    df = _ensure_target_column(df)
 
     columnas_esperadas = set(FEATURES + (TARGET,))
     faltantes = columnas_esperadas.difference(df.columns)
     if faltantes:
         detalle = ", ".join(sorted(faltantes))
         raise ValueError(f"Faltan columnas obligatorias en el dataset real: {detalle}")
+
+    target_values = pd.to_numeric(df[TARGET], errors="coerce") #solo genera una serie temporal para validar que todo sea numérico y poder chequear el rango. No se asigna devuelta a df.
+    if target_values.isna().any():
+        raise ValueError("dia_del_ano contiene valores nulos o no numericos")
+    if not target_values.between(1, 366).all():
+        raise ValueError("dia_del_ano esta fuera del rango valido (1-366)")
+    if not pd.api.types.is_integer_dtype(df[TARGET].dtype):
+        raise ValueError("dia_del_ano debe estar almacenado como entero")
 
     return df
 
