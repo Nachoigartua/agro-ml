@@ -102,3 +102,44 @@ def test_service_handles_other_lote():
     assert response.lote_id == request.lote_id
     assert response.cultivo == request.cultivo
     assert isinstance(response.recomendacion_principal.fecha_optima, str)
+
+
+def test_service_varies_with_cultivo_for_same_lote():
+    request_base = dict(
+        lote_id="lote-001",
+        cliente_id="cliente-123",
+        campana="2025/2026",
+        fecha_consulta=datetime(2025, 10, 4),
+    )
+    service = SiembraRecommendationService(
+        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+    )
+
+    soja = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="soja", **request_base)
+        )
+    )
+    maiz = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="maiz", **request_base)
+        )
+    )
+    trigo = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="trigo", **request_base)
+        )
+    )
+
+    fmt = "%d-%m-%Y"
+    fechas = {
+        "soja": datetime.strptime(soja.recomendacion_principal.fecha_optima, fmt),
+        "maiz": datetime.strptime(maiz.recomendacion_principal.fecha_optima, fmt),
+        "trigo": datetime.strptime(trigo.recomendacion_principal.fecha_optima, fmt),
+    }
+
+    assert len({v.toordinal() for v in fechas.values()}) == 3, "La fecha debe variar segun el cultivo objetivo"
+
+    # Comparar por dia del anio dentro de la campania
+    dia_del_ano = {clave: fecha.timetuple().tm_yday for clave, fecha in fechas.items()}
+    assert dia_del_ano["trigo"] < dia_del_ano["maiz"] < dia_del_ano["soja"]
