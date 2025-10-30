@@ -9,6 +9,20 @@ from app.services.siembra_service import SiembraRecommendationService
 from app.dto.siembra import SiembraRequest
 
 
+class _DummyPrediccionRepository:
+    def __init__(self):
+        self.saved = []
+
+    async def save(self, **kwargs):
+        self.saved.append(kwargs)
+        return kwargs
+
+
+class _DummyPersistenceContext:
+    def __init__(self):
+        self.predicciones = _DummyPrediccionRepository()
+
+
 class _FakeMainSystemClient:
     async def get_lote_data(self, lote_id):
         # Minimal fake response; service currently doesn't use fields
@@ -24,7 +38,10 @@ def test_generate_recommendation_returns_expected_shape():
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
     )
-    service = SiembraRecommendationService(main_system_client=_FakeMainSystemClient())
+    service = SiembraRecommendationService(
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
+    )
 
     # When: executing the async method
     response = asyncio.run(service.generate_recommendation(request))
@@ -53,7 +70,10 @@ def test_generate_recommendation_propagates_503_from_client():
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
     )
-    service = SiembraRecommendationService(main_system_client=_FailingClient())
+    service = SiembraRecommendationService(
+        main_system_client=_FailingClient(),
+        persistence_context=_DummyPersistenceContext(),
+    )
 
     # When/Then: the exception propagates with status code 503
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
@@ -64,14 +84,15 @@ def test_generate_recommendation_propagates_503_from_client():
 def test_service_returns_expected_shape():
     # Usa el cliente mock real para validar shape con datos de lote-001
     request = SiembraRequest(
-        lote_id="lote-001",
-        cliente_id="cliente-001",
+        lote_id="c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
+        cliente_id=str(uuid4()),
         cultivo="trigo",
         campana="2025/2026",
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        persistence_context=_DummyPersistenceContext(),
     )
 
     response = asyncio.run(service.generate_recommendation(request))
@@ -87,14 +108,15 @@ def test_service_returns_expected_shape():
 def test_service_handles_other_lote():
     # Valida con lote-002 y cultivo distinto
     request = SiembraRequest(
-        lote_id="lote-002",
-        cliente_id="cliente-002",
+        lote_id="f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30",
+        cliente_id=str(uuid4()),
         cultivo="soja",
         campana="2025/2026",
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        persistence_context=_DummyPersistenceContext(),
     )
 
     response = asyncio.run(service.generate_recommendation(request))

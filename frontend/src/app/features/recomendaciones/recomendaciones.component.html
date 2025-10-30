@@ -28,11 +28,10 @@
 
       <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
         <div class="field-group">
-         <label for="loteId">Lote id</label>
-         <select id="loteId" formControlName="loteId">
-          <option value="lote-001">lote-001</option>
-          <option value="lote-002">lote-002</option>
-         </select>
+          <label for="loteId">Lote</label>
+          <select id="loteId" formControlName="loteId">
+            <option *ngFor="let lote of lotes" [value]="lote.value">{{ lote.label }}</option>
+          </select>
         </div>
 
         <div class="field-group">
