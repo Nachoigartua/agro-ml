@@ -84,6 +84,9 @@ class SiembraRecommendationService:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
 
+        # Sobrescribir cultivo_anterior con el cultivo actual del request
+        feature_row["cultivo_anterior"] = request.cultivo
+
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
         transformed = self._preprocessor.transform(dataframe)
         predicted_day = self._predict_day_of_year(transformed)
@@ -179,8 +182,10 @@ class SiembraRecommendationService:
         if feature == "materia_organica_pct":
             origen = suelo.get("materia_organica_pct") or suelo.get("materia_organica")
             return self._as_float(origen)
+        if feature.startswith("precipitacion_"):
+            return self._as_float(clima.get(feature))
         if feature == "cultivo_anterior":
-            return self._as_string(lote_data.get("cultivo_anterior"))
+            return None  # se sobrescribe luego con el cultivo del request
 
         if feature in lote_data:
             return self._coerce_feature_value(feature, lote_data[feature])
@@ -216,23 +221,22 @@ class SiembraRecommendationService:
 
     def _resolve_target_year_from_campaign(self, request: SiembraRequest) -> int:
         """Determina el año objetivo desde `campana` dividiendo por '/'."""
-
         campana = (request.campana or "").strip()
         if not campana:
             raise ExternalCampaignNotFoundError(
-                "El campo 'campaña' es requerido y no llegó como correspondía"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
         partes = [p.strip() for p in campana.split("/")]
         if len(partes) < 2:
             raise ExternalCampaignNotFoundError(
-                "El campo 'campaña' es requerido y no llegó como correspondía"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
         anio_str = partes[1]
         if not re.fullmatch(r"(?:19|20)\d{2}", anio_str):
             raise ExternalCampaignNotFoundError(
-                "El campo 'campaña' es requerido y no llegó como correspondía"
+                "El campo 'campana' es requerido y no llegó como correspondía"
             )
 
         return int(anio_str)
