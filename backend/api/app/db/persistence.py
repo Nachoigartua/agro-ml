@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.repositories.modelo_ml_repository import ModeloMLRepository
 from app.db.repositories.prediccion_repository import PrediccionRepository
 from app.db.session import async_session_factory
 
@@ -19,10 +20,12 @@ class PersistenceContext:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
         self.predicciones: PrediccionRepository | None = None
+        self.modelos: ModeloMLRepository | None = None
 
     async def __aenter__(self) -> "PersistenceContext":
         self._session = self._session_factory()
         self.predicciones = PrediccionRepository(self._session)
+        self.modelos = ModeloMLRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -35,6 +38,8 @@ class PersistenceContext:
             else:
                 await self._session.commit()
         finally:
+            self.predicciones = None
+            self.modelos = None
             await self._session.close()
 
     @property

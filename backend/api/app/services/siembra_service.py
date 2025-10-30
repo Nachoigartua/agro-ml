@@ -1,11 +1,10 @@
 ﻿"""Servicio simplificado de recomendaciones de siembra."""
 from __future__ import annotations
 
-import os
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Dict, Optional
+import io
 import re
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
 import joblib
 import pandas as pd
@@ -20,15 +19,6 @@ from ..dto.siembra import (
 )
 from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
 
-BACKEND_DIR = Path(__file__).resolve().parents[3]
-PROJECT_ROOT = Path(os.getenv("AGRO_ML_PROJECT_ROOT", str(BACKEND_DIR.parent))).resolve()
-DEFAULT_MODEL_PATH = (
-    PROJECT_ROOT
-    / "backend"
-    / "machine-learning"
-    / "models"
-    / "modelo_siembra.joblib"
-)
 
 class SiembraRecommendationService:
     """Genera la fecha de siembra recomendada usando el modelo entrenado."""
@@ -37,13 +27,15 @@ class SiembraRecommendationService:
         self,
         main_system_client: MainSystemAPIClient,
         *,
-        model_path: Optional[Path | str] = None,
         persistence_context: PersistenceContext,
+        model_name: str = "modelo_siembra",
+        model_type: str = "random_forest_regressor",
     ) -> None:
         self.main_system_client = main_system_client
-        self.model_path = Path(model_path) if model_path else DEFAULT_MODEL_PATH
         self.logger = get_logger("siembra_service")
         self._persistence_context = persistence_context
+        self._model_name = model_name
+        self._model_type = model_type
 
         self._model = None
         self._preprocessor = None
@@ -51,16 +43,49 @@ class SiembraRecommendationService:
         self._numeric_defaults: Dict[str, float] = {}
         self._categorical_defaults: Dict[str, str] = {}
         self._model_metadata: Dict[str, Any] = {}
+        self._model_loaded = False
+        self._loaded_model_id: Optional[str] = None
 
-        self._load_model()
+    async def _ensure_model_loaded(self) -> None:
+        if self._model_loaded:
+            return
 
-    def _load_model(self) -> None:
-        if not self.model_path.exists():
-            raise FileNotFoundError(
-                f"Modelo de siembra no encontrado en {self.model_path}"
+        entidad = await self._get_active_model()
+        self._load_model_from_blob(entidad.archivo_modelo)
+        self._loaded_model_id = str(entidad.id)
+        self._model_metadata.setdefault("model_version", entidad.version)
+        self._model_metadata.setdefault("version", entidad.version)
+        self._model_metadata.setdefault("model_name", entidad.nombre)
+        self.logger.info(
+            "Modelo de siembra cargado desde base de datos (id=%s, version=%s).",
+            self._loaded_model_id,
+            entidad.version,
+        )
+
+        self._model_loaded = True
+
+    async def _get_active_model(self):
+        if self._persistence_context.modelos is None:
+            raise RuntimeError(
+                "El contexto de persistencia no cuenta con repositorio de modelos configurado."
             )
 
-        model, preprocessor, metadata = joblib.load(self.model_path)
+        entidad = await self._persistence_context.modelos.get_active(
+            nombre=self._model_name,
+            tipo_modelo=self._model_type,
+        )
+        if entidad is None:
+            raise RuntimeError(
+                f"No se encontró un modelo activo en base de datos con nombre={self._model_name} y tipo={self._model_type}."
+            )
+        return entidad
+
+    def _load_model_from_blob(self, blob: bytes) -> None:
+        buffer = io.BytesIO(blob)
+        model, preprocessor, metadata = joblib.load(buffer)
+        self._apply_loaded_model(model, preprocessor, metadata)
+
+    def _apply_loaded_model(self, model, preprocessor, metadata: Dict[str, Any] | None) -> None:
         self._model = model
         self._preprocessor = preprocessor
 
@@ -81,6 +106,8 @@ class SiembraRecommendationService:
         self,
         request: SiembraRequest,
     ) -> SiembraRecommendationResponse:
+        await self._ensure_model_loaded()
+
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
 
