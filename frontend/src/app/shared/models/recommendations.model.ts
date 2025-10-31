@@ -3,7 +3,7 @@ export interface SiembraRecommendationRequest {
   cultivo: string;
   campana: string;
   fecha_consulta: string;
-  cliente_id: string; // provisto por el FE (por ahora fijo)
+  cliente_id: string;
 }
 
 export interface RecommendationWindow {
@@ -17,6 +17,7 @@ export interface RecommendationWindow {
 
 export interface RecommendationAlternative {
   fecha: string;
+  ventana: [string, string];
   pros?: string[];
   contras?: string[];
   confianza: number;
@@ -34,6 +35,7 @@ export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unkn
   costos_estimados?: CostBreakdown;
   fecha_generacion: string;
   metadata?: Record<string, unknown>;
+  datos_entrada?: Record<string, unknown>;
 }
 
 export interface SiembraRecommendationResponse extends RecomendacionResponse<RecommendationWindow, RecommendationAlternative> {

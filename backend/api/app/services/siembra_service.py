@@ -111,7 +111,6 @@ class SiembraRecommendationService:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
 
-        # Sobrescribir cultivo_anterior con el cultivo actual del request
         feature_row["cultivo_anterior"] = request.cultivo
 
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
@@ -130,21 +129,107 @@ class SiembraRecommendationService:
             confianza=1.0,
         )
 
+        alternativa = self._generate_alternative(feature_row, target_year)
+
         response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
-            alternativas=[],
+            alternativas=[alternativa],
             nivel_confianza=1.0,
             factores_considerados=[],
             costos_estimados={},
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
+            datos_entrada=request.model_dump(mode="json"),
         )
 
         await self._persist_recommendation(request, response)
 
         return response
+
+    def _generate_alternative(
+        self,
+        feature_row: Dict[str, Any],
+        target_year: int,
+    ) -> Dict[str, Any]:
+        import random
+        
+        modified_row = feature_row.copy()
+        
+        precip_scenario = random.choice(['seco', 'humedo'])
+        temp_scenario = random.choice(['calido', 'frio'])
+        
+        if precip_scenario == 'seco':
+            precip_factor = random.uniform(0.70, 0.85)
+        else:
+            precip_factor = random.uniform(1.15, 1.30)
+        
+        if temp_scenario == 'calido':
+            temp_adjustment = random.uniform(2.0, 3.5)
+        else:
+            temp_adjustment = random.uniform(-3.5, -2.0)
+        
+        if "precipitacion_marzo" in modified_row and modified_row["precipitacion_marzo"] is not None:
+            modified_row["precipitacion_marzo"] = modified_row["precipitacion_marzo"] * precip_factor
+        if "precipitacion_abril" in modified_row and modified_row["precipitacion_abril"] is not None:
+            modified_row["precipitacion_abril"] = modified_row["precipitacion_abril"] * precip_factor
+        if "precipitacion_mayo" in modified_row and modified_row["precipitacion_mayo"] is not None:
+            modified_row["precipitacion_mayo"] = modified_row["precipitacion_mayo"] * precip_factor
+        
+        if "temp_media_marzo" in modified_row and modified_row["temp_media_marzo"] is not None:
+            modified_row["temp_media_marzo"] = modified_row["temp_media_marzo"] + temp_adjustment
+        if "temp_media_abril" in modified_row and modified_row["temp_media_abril"] is not None:
+            modified_row["temp_media_abril"] = modified_row["temp_media_abril"] + temp_adjustment
+        if "temp_media_mayo" in modified_row and modified_row["temp_media_mayo"] is not None:
+            modified_row["temp_media_mayo"] = modified_row["temp_media_mayo"] + temp_adjustment
+        
+        df = pd.DataFrame([modified_row], columns=self._feature_order)
+        transformed = self._preprocessor.transform(df)
+        alt_day = self._predict_day_of_year(transformed)
+        fecha_alternativa = self._day_of_year_to_date(alt_day, target_year)
+        
+        ventana = [
+            (fecha_alternativa - timedelta(days=2)).strftime("%d-%m-%Y"),
+            (fecha_alternativa + timedelta(days=2)).strftime("%d-%m-%Y"),
+        ]
+        
+        pros = []
+        contras = []
+        
+        if precip_scenario == 'seco':
+            contras.append("Menor disponibilidad hídrica")
+            pros.append("Menor riesgo de anegamiento")
+            if temp_scenario == 'calido':
+                contras.append("Mayor estrés hídrico por temperatura elevada")
+        else:
+            pros.append("Mayor disponibilidad hídrica")
+            contras.append("Mayor riesgo de enfermedades fúngicas")
+            if temp_scenario == 'frio':
+                pros.append("Menor evapotranspiración")
+        
+        if temp_scenario == 'calido':
+            pros.append("Germinación más rápida")
+            contras.append("Mayor estrés térmico en plántulas")
+        else:
+            pros.append("Menor estrés térmico")
+            contras.append("Desarrollo inicial más lento")
+        
+        base_confidence = 0.72
+        if abs(precip_factor - 1.0) > 0.2:
+            base_confidence -= 0.05
+        if abs(temp_adjustment) > 3.0:
+            base_confidence -= 0.05
+        
+        confianza = 75 # De momento hardcodeamos un valor fijo
+        
+        return {
+            "fecha": fecha_alternativa.strftime("%d-%m-%Y"),
+            "ventana": ventana,
+            "confianza": confianza,
+            "pros": pros,
+            "contras": contras,
+        }
 
     async def _persist_recommendation(
         self,
@@ -212,7 +297,7 @@ class SiembraRecommendationService:
         if feature.startswith("precipitacion_"):
             return self._as_float(clima.get(feature))
         if feature == "cultivo_anterior":
-            return None  # se sobrescribe luego con el cultivo del request
+            return None
 
         if feature in lote_data:
             return self._coerce_feature_value(feature, lote_data[feature])

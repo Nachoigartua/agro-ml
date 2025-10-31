@@ -19,6 +19,7 @@ class RecomendacionResponse(BaseModel):
     factores_considerados: List[str] = Field(default_factory=list)
     costos_estimados: Dict[str, float] = Field(default_factory=dict)
     fecha_generacion: datetime
+    datos_entrada: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RecomendacionPrincipalSiembra(BaseModel):
