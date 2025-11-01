@@ -57,3 +57,28 @@ class SiembraRecommendationResponse(RecomendacionResponse):
 
     cultivo: str
     recomendacion_principal: RecomendacionPrincipalSiembra
+
+
+class SiembraHistoryItem(BaseModel):
+    """Elemento del historial de recomendaciones de siembra."""
+
+    id: UUID
+    lote_id: UUID
+    cliente_id: UUID
+    cultivo: Optional[str] = None
+    campana: Optional[str] = None
+    fecha_creacion: Optional[datetime] = None
+    fecha_validez_desde: Optional[date] = None
+    fecha_validez_hasta: Optional[date] = None
+    nivel_confianza: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    recomendacion_principal: RecomendacionPrincipalSiembra
+    alternativas: List[Dict[str, Any]] = Field(default_factory=list)
+    modelo_version: Optional[str] = None
+    datos_entrada: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SiembraHistoryResponse(BaseModel):
+    """Respuesta para el endpoint de historial de siembra."""
+
+    total: int
+    items: List[SiembraHistoryItem]
