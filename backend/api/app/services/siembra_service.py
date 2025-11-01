@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import joblib
 import pandas as pd
@@ -12,10 +12,13 @@ import pandas as pd
 from ..clients.main_system_client import MainSystemAPIClient
 from ..core.logging import get_logger
 from ..db.persistence import PersistenceContext
+from ..db.models.predicciones import Prediccion
 from ..dto.siembra import (
+    ALLOWED_CULTIVOS,
     SiembraRecommendationResponse,
     SiembraRequest,
     RecomendacionPrincipalSiembra,
+    SiembraHistoryItem,
 )
 from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
 
@@ -182,6 +185,70 @@ class SiembraRecommendationService:
             fecha_validez_hasta=fecha_validez_hasta,
         )
 
+    async def get_history(
+        self,
+        *,
+        cliente_id: Optional[str] = None,
+        lote_id: Optional[str] = None,
+        cultivo: Optional[str] = None,
+        campana: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[SiembraHistoryItem]:
+        """Recupera el historial de recomendaciones de siembra aplicando filtros opcionales."""
+
+        if self._persistence_context.predicciones is None:
+            raise RuntimeError(
+                "El contexto de persistencia no cuenta con un repositorio de predicciones configurado."
+            )
+
+        normalised_cultivo: Optional[str] = None
+        if cultivo is not None:
+            normalised_cultivo = self._normalise_cultivo(cultivo)
+
+        registros = await self._persistence_context.predicciones.list_by_filters(
+            tipo_prediccion="siembra",
+            cliente_id=cliente_id,
+            lote_id=lote_id,
+            cultivo=normalised_cultivo,
+            campana=campana,
+            limit=limit,
+            offset=offset,
+        )
+
+        return [self._map_prediccion_to_history_item(pred) for pred in registros]
+
+    def _map_prediccion_to_history_item(self, entidad: Prediccion) -> SiembraHistoryItem:
+        """Convierte la entidad ORM en el DTO esperado por el endpoint."""
+
+        principal_data = entidad.recomendacion_principal or {}
+        try:
+            recomendacion_principal = RecomendacionPrincipalSiembra(**principal_data)
+        except Exception as exc:  # pragma: no cover - datos corruptos
+            raise ValueError("Los datos persistidos de la recomendación principal son inválidos") from exc
+
+        alternativas_raw = entidad.alternativas or []
+        alternativas = [
+            dict(alt) if isinstance(alt, dict) else alt for alt in alternativas_raw
+        ]
+        datos_entrada = dict(entidad.datos_entrada or {})
+
+        return SiembraHistoryItem(
+            id=entidad.id,
+            lote_id=entidad.lote_id,
+            cliente_id=entidad.cliente_id,
+            cultivo=entidad.cultivo,
+            campana=datos_entrada.get("campana"),
+            fecha_creacion=entidad.fecha_creacion,
+            fecha_validez_desde=entidad.fecha_validez_desde,
+            fecha_validez_hasta=entidad.fecha_validez_hasta,
+            nivel_confianza=entidad.nivel_confianza,
+            recomendacion_principal=recomendacion_principal,
+            alternativas=alternativas,
+            modelo_version=entidad.modelo_version,
+            datos_entrada=datos_entrada,
+        )
+
     def _build_feature_row(self, lote_data: Dict[str, Any]) -> Dict[str, Any]:
         row: Dict[str, Any] = {}
         for feature in self._feature_order:
@@ -235,6 +302,13 @@ class SiembraRecommendationService:
         if feature in self._categorical_defaults:
             return self._categorical_defaults[feature]
         raise ValueError(f"No hay datos para la feature requerida: {feature}")
+
+    def _normalise_cultivo(self, value: str) -> str:
+        normalised = (value or "").strip().lower()
+        if normalised not in ALLOWED_CULTIVOS:
+            allowed = ", ".join(sorted(ALLOWED_CULTIVOS))
+            raise ValueError(f"cultivo debe ser uno de: {allowed}")
+        return normalised
 
     def _predict_day_of_year(self, transformed) -> int:
         prediction = float(self._model.predict(transformed)[0])
