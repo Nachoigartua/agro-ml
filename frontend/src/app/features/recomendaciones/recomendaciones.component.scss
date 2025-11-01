@@ -383,16 +383,50 @@
     display: grid;
     gap: 1rem;
 
+    .scenario-badge {
+      padding: 1rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 193, 7, 0.05));
+      border: 1px solid rgba(255, 152, 0, 0.3);
+
+      .scenario-name {
+        display: block;
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #e65100;
+        text-transform: uppercase;
+        letter-spacing: 0.05rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .scenario-description {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+    }
+
     .alt-pros-cons {
       display: grid;
       gap: 0.5rem;
+    }
+
+    .label {
+      font-size: 0.8rem;
+      letter-spacing: 0.04rem;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.35rem;
     }
 
     .chip-list {
       display: flex;
       flex-wrap: wrap;
       gap: 0.35rem;
-      margin: 0.35rem 0 0 0;
+      margin: 0;
       padding: 0;
       list-style: none;
 

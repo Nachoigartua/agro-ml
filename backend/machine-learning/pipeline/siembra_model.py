@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -57,8 +56,6 @@ class TrainingConfig:
     """Configuracion para ejecutar el entrenamiento sobre datos reales."""
 
     data_path: Path
-    model_output_path: Path
-    metrics_output_path: Path
     test_size: float = 0.2
     random_state: int = 42
 
@@ -71,12 +68,6 @@ class TrainingArtifacts:
     preprocessor: ColumnTransformer
     metadata: Dict[str, object]
     metrics: Dict[str, float]
-
-
-def ensure_parent_dir(path: Path) -> None:
-    """Crea el directorio padre para ``path`` si todavia no existe."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-
 
 def load_dataset(path: Path) -> pd.DataFrame:
     """Carga el dataset real con la columna `dia_del_ano` ya numérica (verificamos que no queden nulos ni strings y que todos los valores estén en 1‑366)."""
@@ -195,26 +186,12 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
             "random_state": config.random_state,
         },
     }
-
-    ensure_parent_dir(config.model_output_path)
-    joblib.dump((model, preprocessor, metadata), config.model_output_path)
-
     return TrainingArtifacts(
         model=model,
         preprocessor=preprocessor,
         metadata=metadata,
         metrics=metrics,
     )
-
-
-def save_metrics(metrics: Dict[str, float], path: Path) -> None:
-    """Guarda las metricas de evaluacion en formato JSON para auditoria."""
-    import json
-    ensure_parent_dir(path)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(metrics, handle, indent=2)
-
-
 __all__ = [
     "FEATURES",
     "TARGET",
@@ -222,5 +199,4 @@ __all__ = [
     "TrainingArtifacts",
     "load_dataset",
     "train_model",
-    "save_metrics",
 ]

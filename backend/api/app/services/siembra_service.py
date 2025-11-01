@@ -18,6 +18,11 @@ from ..dto.siembra import (
     RecomendacionPrincipalSiembra,
 )
 from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
+from .climate_scenarios import ClimateScenarioGenerator
+
+
+# Constante para la confianza de alternativas (hardcodeado según requerimiento)
+ALTERNATIVE_CONFIDENCE = 0.75
 
 
 class SiembraRecommendationService:
@@ -153,82 +158,50 @@ class SiembraRecommendationService:
         feature_row: Dict[str, Any],
         target_year: int,
     ) -> Dict[str, Any]:
-        import random
+        """
+        Genera una alternativa de siembra basada en un escenario climático extremo.
         
-        modified_row = feature_row.copy()
+        Args:
+            feature_row: Features originales del lote
+            target_year: Año objetivo para la siembra
+            
+        Returns:
+            Diccionario con la alternativa generada
+        """
+        # Obtener escenario climático aleatorio
+        scenario = ClimateScenarioGenerator.get_random_scenario()
         
-        precip_scenario = random.choice(['seco', 'humedo'])
-        temp_scenario = random.choice(['calido', 'frio'])
+        # Aplicar modificaciones del escenario a las features
+        modified_row = ClimateScenarioGenerator.apply_scenario_to_features(
+            feature_row, 
+            scenario
+        )
         
-        if precip_scenario == 'seco':
-            precip_factor = random.uniform(0.70, 0.85)
-        else:
-            precip_factor = random.uniform(1.15, 1.30)
-        
-        if temp_scenario == 'calido':
-            temp_adjustment = random.uniform(2.0, 3.5)
-        else:
-            temp_adjustment = random.uniform(-3.5, -2.0)
-        
-        if "precipitacion_marzo" in modified_row and modified_row["precipitacion_marzo"] is not None:
-            modified_row["precipitacion_marzo"] = modified_row["precipitacion_marzo"] * precip_factor
-        if "precipitacion_abril" in modified_row and modified_row["precipitacion_abril"] is not None:
-            modified_row["precipitacion_abril"] = modified_row["precipitacion_abril"] * precip_factor
-        if "precipitacion_mayo" in modified_row and modified_row["precipitacion_mayo"] is not None:
-            modified_row["precipitacion_mayo"] = modified_row["precipitacion_mayo"] * precip_factor
-        
-        if "temp_media_marzo" in modified_row and modified_row["temp_media_marzo"] is not None:
-            modified_row["temp_media_marzo"] = modified_row["temp_media_marzo"] + temp_adjustment
-        if "temp_media_abril" in modified_row and modified_row["temp_media_abril"] is not None:
-            modified_row["temp_media_abril"] = modified_row["temp_media_abril"] + temp_adjustment
-        if "temp_media_mayo" in modified_row and modified_row["temp_media_mayo"] is not None:
-            modified_row["temp_media_mayo"] = modified_row["temp_media_mayo"] + temp_adjustment
-        
+        # Predecir con el modelo usando las features modificadas
         df = pd.DataFrame([modified_row], columns=self._feature_order)
         transformed = self._preprocessor.transform(df)
         alt_day = self._predict_day_of_year(transformed)
         fecha_alternativa = self._day_of_year_to_date(alt_day, target_year)
         
+        # Generar ventana de siembra
         ventana = [
             (fecha_alternativa - timedelta(days=2)).strftime("%d-%m-%Y"),
             (fecha_alternativa + timedelta(days=2)).strftime("%d-%m-%Y"),
         ]
         
-        pros = []
-        contras = []
-        
-        if precip_scenario == 'seco':
-            contras.append("Menor disponibilidad hídrica")
-            pros.append("Menor riesgo de anegamiento")
-            if temp_scenario == 'calido':
-                contras.append("Mayor estrés hídrico por temperatura elevada")
-        else:
-            pros.append("Mayor disponibilidad hídrica")
-            contras.append("Mayor riesgo de enfermedades fúngicas")
-            if temp_scenario == 'frio':
-                pros.append("Menor evapotranspiración")
-        
-        if temp_scenario == 'calido':
-            pros.append("Germinación más rápida")
-            contras.append("Mayor estrés térmico en plántulas")
-        else:
-            pros.append("Menor estrés térmico")
-            contras.append("Desarrollo inicial más lento")
-        
-        base_confidence = 0.72
-        if abs(precip_factor - 1.0) > 0.2:
-            base_confidence -= 0.05
-        if abs(temp_adjustment) > 3.0:
-            base_confidence -= 0.05
-        
-        confianza = 75 # De momento hardcodeamos un valor fijo
+        # Obtener pros y contras del escenario
+        pros, contras = ClimateScenarioGenerator.get_pros_contras(scenario.nombre)
         
         return {
             "fecha": fecha_alternativa.strftime("%d-%m-%Y"),
             "ventana": ventana,
-            "confianza": confianza,
+            "confianza": ALTERNATIVE_CONFIDENCE,
             "pros": pros,
             "contras": contras,
+            "escenario_climatico": {
+                "nombre": scenario.nombre,
+                "descripcion": scenario.descripcion,
+            }
         }
 
     async def _persist_recommendation(

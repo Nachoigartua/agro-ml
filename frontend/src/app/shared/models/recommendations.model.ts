@@ -21,6 +21,10 @@ export interface RecommendationAlternative {
   pros?: string[];
   contras?: string[];
   confianza: number;
+  escenario_climatico?: {
+    nombre: string;
+    descripcion: string;
+  };
 }
 
 export type CostBreakdown = Record<string, number>;

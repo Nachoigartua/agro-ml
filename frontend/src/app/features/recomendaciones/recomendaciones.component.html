@@ -108,12 +108,19 @@
             <h3>Alternativa</h3>
             <div class="alternative-grid">
               <div class="alternative-card" *ngFor="let alt of result.alternativas; trackBy: trackByAlternative">
+                <!-- Descripción del escenario climático -->
+                <div class="scenario-badge" *ngIf="alt.escenario_climatico">
+                  <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
+                  <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
+                </div>
+                
                 <div class="main-window">
                   <span class="date">{{ formatDate(alt.fecha) }}</span>
                   <span class="range-label">Ventana de siembra óptima:</span>
                   <span class="range">{{ formatVentana(alt.ventana) }}</span>
                   <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
                 </div>
+                
                 <div class="alt-pros-cons">
                   <div *ngIf="alt.pros?.length">
                     <span class="label">Pros</span>

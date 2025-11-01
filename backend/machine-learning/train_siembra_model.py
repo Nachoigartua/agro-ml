@@ -21,7 +21,6 @@ from app.db.persistence import PersistenceContext
 from pipeline.siembra_model import (
     TrainingArtifacts,
     TrainingConfig,
-    save_metrics,
     train_model,
 )
 
@@ -65,15 +64,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_paths(custom_data_path: Path | None = None) -> tuple[Path, Path, Path]:
-    """Resuelve las rutas absolutas del dataset, modelo y metricas."""
+def resolve_data_path(custom_data_path: Path | None = None) -> Path:
+    """Resuelve la ruta absoluta del dataset de entrenamiento."""
 
     ml_dir = Path(__file__).resolve().parent
 
-    data_path = custom_data_path or ml_dir / "data" / "dataset_completo_argentina.csv"
-    model_path = ml_dir / "models" / "modelo_siembra.joblib"
-    metrics_path = ml_dir / "models" / "siembra_metrics.json"
-    return data_path, model_path, metrics_path
+    return custom_data_path or ml_dir / "data" / "dataset_completo_argentina.csv"
 
 
 def _serialize_model(artifacts: TrainingArtifacts) -> bytes:
@@ -119,17 +115,14 @@ def main() -> int:
     """Ejecuta el proceso de entrenamiento y deja artefactos listos para el backend."""
 
     args = parse_args()
-    data_path, model_path, metrics_path = resolve_paths(args.data_path)
+    data_path = resolve_data_path(args.data_path)
 
     config = TrainingConfig(
         data_path=data_path,
-        model_output_path=model_path,
-        metrics_output_path=metrics_path,
         test_size=args.test_size,
     )
 
     artifacts = train_model(config)
-    save_metrics(artifacts.metrics, metrics_path)
 
     serialized_model = _serialize_model(artifacts)
     trained_at = datetime.now(timezone.utc)
@@ -156,8 +149,7 @@ def main() -> int:
             r2 or float("nan"),
         )
     )
-    print(f"Modelo guardado en: {model_path}")
-    print(f"Metricas guardadas en: {metrics_path}")
+    print("Modelo y metricas almacenados en la base de datos `modelos_ml`.")
     print(f"Modelo almacenado en base de datos con id: {db_model_id}")
 
     return 0
