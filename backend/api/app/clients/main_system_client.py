@@ -55,6 +55,29 @@ LOTES_DB: Dict[str, Dict[str, object]] = {
         },
         "cultivo_anterior": "maiz",
     },
+    "a17c9db2-5588-4b71-8f8a-6a54b1ad7eaa": {
+        #se agrego para probar riesgos, deberia saltar riesgo de heladas y poca lluvia
+        "lote_id": "a17c9db2-5588-4b71-8f8a-6a54b1ad7eaa",
+        "nombre": "Lote Cordillera Neuquén",
+        "establecimiento_id": "est-456",
+        "superficie_ha": 85,
+        "ubicacion": {"latitud": -39.5, "longitud": -70.6},  # Nequen, frio y poca lluvia
+        "suelo": {
+            "tipo_suelo": "andisol volcánico",
+            "ph_suelo": 5.8,
+            "materia_organica": 6.1,
+            "materia_organica_pct": 6.1,
+        },
+        "clima": {
+            "temp_media_marzo": 12.0,
+            "temp_media_abril": 7.0,
+            "temp_media_mayo": 3.0,
+            "precipitacion_marzo": 70.0,
+            "precipitacion_abril": 55.0,
+            "precipitacion_mayo": 40.0,
+        },
+        "cultivo_anterior": "trigo",
+    },
 }
 
 
