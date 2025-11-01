@@ -33,7 +33,6 @@ LOTES_DB: Dict[str, Dict[str, object]] = {
             "precipitacion_abril": 90.0,
             "precipitacion_mayo": 60.0,
         },
-        "cultivo_anterior": "soja",
     },
     "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30": {
         "lote_id": "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30",
@@ -53,7 +52,6 @@ LOTES_DB: Dict[str, Dict[str, object]] = {
             "precipitacion_abril": 80.0,
             "precipitacion_mayo": 50.0,
         },
-        "cultivo_anterior": "maiz",
     },
 }
 

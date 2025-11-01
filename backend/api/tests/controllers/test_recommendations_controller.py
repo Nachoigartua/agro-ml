@@ -72,3 +72,103 @@ def test_siembra_recommendation_invalid_body_returns_422(client: TestClient):
     detail = response.json().get("detail", [])
     assert isinstance(detail, list)
     assert any("cultivo debe ser uno de" in (err.get("msg") or "") for err in detail)
+
+
+class _StubHistoryService:
+    def __init__(self):
+        self.received_kwargs = None
+
+    async def get_history(self, **kwargs):
+        kwargs = dict(kwargs)
+        kwargs.setdefault("limit", 100)
+        kwargs.setdefault("offset", 0)
+        self.received_kwargs = kwargs
+        from datetime import datetime, timezone
+        from uuid import uuid4 as _uuid4
+
+        from app.dto.siembra import RecomendacionPrincipalSiembra, SiembraHistoryItem
+
+        return [
+            SiembraHistoryItem(
+                id=_uuid4(),
+                lote_id=_uuid4(),
+                cliente_id=_uuid4(),
+                cultivo="trigo",
+                campana="2025/2026",
+                fecha_creacion=datetime(2025, 6, 1, tzinfo=timezone.utc),
+                fecha_validez_desde=None,
+                fecha_validez_hasta=None,
+                nivel_confianza=0.85,
+                recomendacion_principal=RecomendacionPrincipalSiembra(
+                    fecha_optima="01-09-2025",
+                    ventana=["30-08-2025", "02-09-2025"],
+                    confianza=0.9,
+                ),
+                alternativas=[],
+                modelo_version="v1",
+                datos_entrada={"campana": "2025/2026"},
+            )
+        ]
+
+
+def test_historial_siembra_endpoint_returns_data(client: TestClient):
+    from app.dependencies import get_siembra_service
+
+    service = _StubHistoryService()
+    app.dependency_overrides[get_siembra_service] = lambda: service
+
+    cliente = uuid4()
+    lote = uuid4()
+
+    try:
+        response = client.get(
+            "/api/v1/recomendaciones/siembra/historial",
+            params={
+                "cliente_id": str(cliente),
+                "lote_id": str(lote),
+                "cultivo": "trigo",
+                "campana": "2025/2026",
+            },
+            headers=_auth_headers(),
+        )
+    finally:
+        app.dependency_overrides.pop(get_siembra_service, None)
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["total"] == 1
+    assert isinstance(data["items"], list)
+    assert data["items"][0]["cultivo"] == "trigo"
+    assert data["items"][0]["campana"] == "2025/2026"
+
+    assert service.received_kwargs == {
+        "cliente_id": str(cliente),
+        "lote_id": str(lote),
+        "cultivo": "trigo",
+        "campana": "2025/2026",
+        "limit": 100,
+        "offset": 0,
+    }
+
+
+def test_historial_siembra_endpoint_returns_400_on_invalid_filters(client: TestClient):
+    from app.dependencies import get_siembra_service
+
+    class _FailingService:
+        async def get_history(self, **kwargs):
+            raise ValueError("cultivo debe ser uno de: cebada, maiz, soja, trigo")
+
+    app.dependency_overrides[get_siembra_service] = lambda: _FailingService()
+
+    try:
+        response = client.get(
+            "/api/v1/recomendaciones/siembra/historial",
+            params={"cultivo": "girasol"},
+            headers=_auth_headers(),
+        )
+    finally:
+        app.dependency_overrides.pop(get_siembra_service, None)
+
+    assert response.status_code == 400
+    assert "cultivo debe ser uno de" in response.json()["detail"]

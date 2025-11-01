@@ -21,12 +21,37 @@ class _DummyPrediccionRepository:
 class _DummyPersistenceContext:
     def __init__(self):
         self.predicciones = _DummyPrediccionRepository()
+        self.modelos = None
 
 
 class _FakeMainSystemClient:
     async def get_lote_data(self, lote_id):
         # Minimal fake response; service currently doesn't use fields
         return {"id": str(lote_id)}
+
+
+class _StubPreprocessor:
+    _mapping = {"trigo": 150.0, "maiz": 200.0, "soja": 250.0}
+
+    def transform(self, df):
+        cultivo = df.iloc[0]["cultivo_anterior"]
+        value = self._mapping.get(cultivo, 180.0)
+        return [[value]]
+
+
+class _StubModel:
+    def predict(self, data):
+        return [float(data[0][0])]
+
+
+def _prime_service_with_stub_model(service: SiembraRecommendationService):
+    service._model_loaded = True
+    service._feature_order = ["cultivo_anterior"]
+    service._numeric_defaults = {}
+    service._categorical_defaults = {"cultivo_anterior": "trigo"}
+    service._model_metadata = {"model_version": "test"}
+    service._preprocessor = _StubPreprocessor()
+    service._model = _StubModel()
 
 
 def test_generate_recommendation_returns_expected_shape():
@@ -42,6 +67,7 @@ def test_generate_recommendation_returns_expected_shape():
         main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     # When: executing the async method
     response = asyncio.run(service.generate_recommendation(request))
@@ -74,6 +100,7 @@ def test_generate_recommendation_propagates_503_from_client():
         main_system_client=_FailingClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     # When/Then: the exception propagates with status code 503
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
@@ -91,9 +118,10 @@ def test_service_returns_expected_shape():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
@@ -115,9 +143,10 @@ def test_service_handles_other_lote():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
@@ -134,8 +163,10 @@ def test_service_varies_with_cultivo_for_same_lote():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     soja = asyncio.run(
         service.generate_recommendation(
