@@ -22,7 +22,6 @@ export class RecomendacionesComponent implements OnInit {
   result: SiembraRecommendationResponse | null = null;
   error: string | null = null;
 
-  // Debe coincidir con los permitidos por el backend
   readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada'];
   readonly lotes = [
     { label: 'lote-001', value: 'c3f2f1ab-ca2e-4f8b-9819-377102c4d889' },
@@ -38,8 +37,6 @@ export class RecomendacionesComponent implements OnInit {
   }
 
   ngOnInit(): void {}
-
-  // resetForm button removed; keeping minimal form inputs
 
   onCultivoSelect(cultivo: string): void {
     this.recommendationForm.patchValue({ cultivo });
@@ -124,7 +121,6 @@ export class RecomendacionesComponent implements OnInit {
 
   private createForm(): FormGroup {
     return this.fb.group({
-      // Usar UUIDs válidos por defecto para evitar 422
       loteId: [this.lotes[0].value, Validators.required],
       cultivo: [this.cultivos[0], Validators.required],
       campana: [this.defaultCampana, Validators.required]
@@ -140,13 +136,11 @@ export class RecomendacionesComponent implements OnInit {
       cultivo,
       campana,
       fecha_consulta: fecha.toISOString(),
-      // por ahora se envía un cliente fijo; luego vendrá de la sesión
       cliente_id: '123e4567-e89b-12d3-a456-426614174001'
     };
   }
 
   formatDate(value: string): string {
-    // El backend envía fechas de ventana y óptima como dd-mm-yyyy.
     const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/;
     if (ddmmyyyy.test(value)) {
       const [dd, mm, yyyy] = value.split('-');
@@ -166,5 +160,22 @@ export class RecomendacionesComponent implements OnInit {
     } catch {
       return date.toLocaleDateString('es-AR');
     }
+  }
+
+  getLoteLabel(loteId: string): string {
+    const lote = this.lotes.find(l => l.value === loteId);
+    return lote ? lote.label : loteId;
+  }
+
+  getDatosEntradaLoteId(): string {
+    return this.result?.datos_entrada?.['lote_id'] as string || '';
+  }
+
+  getDatosEntradaCampana(): string {
+    return this.result?.datos_entrada?.['campana'] as string || '';
+  }
+
+  getDatosEntradaFechaConsulta(): string {
+    return this.result?.datos_entrada?.['fecha_consulta'] as string || '';
   }
 }
