@@ -27,11 +27,12 @@ class RecomendacionPrincipalSiembra(BaseModel):
     """Estructura de la recomendación principal para siembra."""
 
     fecha_optima: str
-    ventana: List[str]
+    ventana: List[str] = Field(min_length=2, max_length=2)
     confianza: float = Field(ge=0.0, le=1.0)
 
 
 class SiembraRequest(BaseModel):
+    """Request para generar recomendación de siembra."""
 
     lote_id: str
     cultivo: str
@@ -42,6 +43,7 @@ class SiembraRequest(BaseModel):
     @field_validator("cultivo")
     @classmethod
     def validate_cultivo(cls, value: str) -> str:
+        """Valida que el cultivo sea uno de los permitidos."""
         normalised = value.lower()
         if normalised not in ALLOWED_CULTIVOS:
             allowed = ", ".join(sorted(ALLOWED_CULTIVOS))
