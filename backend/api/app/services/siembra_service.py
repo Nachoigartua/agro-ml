@@ -26,6 +26,7 @@ from .climate_scenarios import ClimateScenarioGenerator
 
 # Constante para la confianza de alternativas (hardcodeado según requerimiento)
 ALTERNATIVE_CONFIDENCE = 0.75
+from .siembra_risk_analyzer import SiembraRiskAnalyzer
 
 
 class SiembraRecommendationService:
@@ -38,9 +39,12 @@ class SiembraRecommendationService:
         persistence_context: PersistenceContext,
         model_name: str = "modelo_siembra",
         model_type: str = "random_forest_regressor",
+        risk_analyzer: Optional[SiembraRiskAnalyzer] = None,
+        # ↑ Se agrega el analizador como dependencia opcional
     ) -> None:
         self.main_system_client = main_system_client
         self.logger = get_logger("siembra_service")
+        self._risk_analyzer = risk_analyzer or SiembraRiskAnalyzer(logger=self.logger)
         self._persistence_context = persistence_context
         self._model_name = model_name
         self._model_type = model_type
@@ -127,14 +131,32 @@ class SiembraRecommendationService:
         target_year = self._resolve_target_year_from_campaign(request)
         fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
 
+        ventana_inicio = fecha_optima - timedelta(days=2)
+        ventana_fin = fecha_optima + timedelta(days=2)
+
+        try:
+              #se ejecuta el analizador de riesgos climático
+            riesgos = await self._risk_analyzer.evaluate(
+                lote_data,
+                fecha_objetivo=fecha_optima,
+                ventana=(ventana_inicio, ventana_fin),
+            )
+        except Exception:
+            self.logger.exception("Error durante el analisis de riesgos de siembra", extra={"lote_id": request.lote_id})
+            riesgos = [self._risk_analyzer.default_risk_message]
+        
         ventana = [
-            (fecha_optima - timedelta(days=2)).strftime("%d-%m-%Y"),
-            (fecha_optima + timedelta(days=2)).strftime("%d-%m-%Y"),
+            #Calcula las fechas en variables (ventana_inicio, ventana_fin), antes estaban inline (me parece mejor asi)
+            ventana_inicio.strftime("%d-%m-%Y"),
+            ventana_fin.strftime("%d-%m-%Y"),
         ]
+        # se agregan los riesgos al modelo de respuesta
         recomendacion_principal = RecomendacionPrincipalSiembra(
             fecha_optima=fecha_optima.strftime("%d-%m-%Y"),
             ventana=ventana,
             confianza=1.0,
+            riesgos=riesgos,
+           
         )
 
         alternativa = self._generate_alternative(feature_row, target_year)

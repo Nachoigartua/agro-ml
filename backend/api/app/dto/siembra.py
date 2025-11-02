@@ -29,6 +29,9 @@ class RecomendacionPrincipalSiembra(BaseModel):
     fecha_optima: str
     ventana: List[str]
     confianza: float = Field(ge=0.0, le=1.0)
+    
+    # Lista de riesgos, se inicia vacía para evitar referencias compartidas.
+    riesgos: List[str] = Field(default_factory=list)
 
 
 class SiembraRequest(BaseModel):
