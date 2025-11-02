@@ -21,6 +21,11 @@ from ..dto.siembra import (
     SiembraHistoryItem,
 )
 from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
+from .climate_scenarios import ClimateScenarioGenerator
+
+
+# Constante para la confianza de alternativas (hardcodeado según requerimiento)
+ALTERNATIVE_CONFIDENCE = 0.75
 
 
 class SiembraRecommendationService:
@@ -114,7 +119,6 @@ class SiembraRecommendationService:
         lote_data = await self.main_system_client.get_lote_data(request.lote_id)
         feature_row = self._build_feature_row(lote_data)
 
-        # Sobrescribir cultivo_anterior con el cultivo actual del request
         feature_row["cultivo_anterior"] = request.cultivo
 
         dataframe = pd.DataFrame([feature_row], columns=self._feature_order)
@@ -133,21 +137,75 @@ class SiembraRecommendationService:
             confianza=1.0,
         )
 
+        alternativa = self._generate_alternative(feature_row, target_year)
+
         response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
-            alternativas=[],
+            alternativas=[alternativa],
             nivel_confianza=1.0,
             factores_considerados=[],
             costos_estimados={},
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
+            datos_entrada=request.model_dump(mode="json"),
         )
 
         await self._persist_recommendation(request, response)
 
         return response
+
+    def _generate_alternative(
+        self,
+        feature_row: Dict[str, Any],
+        target_year: int,
+    ) -> Dict[str, Any]:
+        """
+        Genera una alternativa de siembra basada en un escenario climático extremo.
+        
+        Args:
+            feature_row: Features originales del lote
+            target_year: Año objetivo para la siembra
+            
+        Returns:
+            Diccionario con la alternativa generada
+        """
+        # Obtener escenario climático aleatorio
+        scenario = ClimateScenarioGenerator.get_random_scenario()
+        
+        # Aplicar modificaciones del escenario a las features
+        modified_row = ClimateScenarioGenerator.apply_scenario_to_features(
+            feature_row, 
+            scenario
+        )
+        
+        # Predecir con el modelo usando las features modificadas
+        df = pd.DataFrame([modified_row], columns=self._feature_order)
+        transformed = self._preprocessor.transform(df)
+        alt_day = self._predict_day_of_year(transformed)
+        fecha_alternativa = self._day_of_year_to_date(alt_day, target_year)
+        
+        # Generar ventana de siembra
+        ventana = [
+            (fecha_alternativa - timedelta(days=2)).strftime("%d-%m-%Y"),
+            (fecha_alternativa + timedelta(days=2)).strftime("%d-%m-%Y"),
+        ]
+        
+        # Obtener pros y contras del escenario
+        pros, contras = ClimateScenarioGenerator.get_pros_contras(scenario.nombre)
+        
+        return {
+            "fecha": fecha_alternativa.strftime("%d-%m-%Y"),
+            "ventana": ventana,
+            "confianza": ALTERNATIVE_CONFIDENCE,
+            "pros": pros,
+            "contras": contras,
+            "escenario_climatico": {
+                "nombre": scenario.nombre,
+                "descripcion": scenario.descripcion,
+            }
+        }
 
     async def _persist_recommendation(
         self,
@@ -279,7 +337,7 @@ class SiembraRecommendationService:
         if feature.startswith("precipitacion_"):
             return self._as_float(clima.get(feature))
         if feature == "cultivo_anterior":
-            return None  # se sobrescribe luego con el cultivo del request
+            return None
 
         if feature in lote_data:
             return self._coerce_feature_value(feature, lote_data[feature])
