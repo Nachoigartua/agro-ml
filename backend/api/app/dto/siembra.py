@@ -24,11 +24,16 @@ class RecomendacionResponse(BaseModel):
 
 
 class RecomendacionPrincipalSiembra(BaseModel):
-    """Estructura de la recomendación principal para siembra."""
+    """Estructura de la recomendación principal para siembra.
+    
+    Combina validaciones de REFACTOR (ventana length) con
+    feature de análisis de riesgo de DEV (campo riesgos).
+    """
 
     fecha_optima: str
-    ventana: List[str] = Field(min_length=2, max_length=2)
+    ventana: List[str] = Field(min_length=2, max_length=2)  # De REFACTOR
     confianza: float = Field(ge=0.0, le=1.0)
+    riesgos: List[str] = Field(default_factory=list)  # De DEV - Análisis de riesgo
 
 
 class SiembraRequest(BaseModel):

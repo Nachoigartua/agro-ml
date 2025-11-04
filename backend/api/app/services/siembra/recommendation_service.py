@@ -1,7 +1,7 @@
 """Servicio orquestador de recomendaciones de siembra."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 import pandas as pd
@@ -25,6 +25,7 @@ from .predictor import SiembraPredictor
 from .date_converter import DateConverter
 from .campaign_parser import CampaignParser
 from .alternative_generator import AlternativeGenerator
+from .risk_analyzer import SiembraRiskAnalyzer  # ← NUEVO
 
 
 logger = get_logger("siembra.recommendation_service")
@@ -34,6 +35,7 @@ class SiembraRecommendationService:
     """Servicio principal para generar recomendaciones de siembra.
     
     Orquesta las diferentes responsabilidades delegando a componentes especializados.
+    Integra análisis de riesgo climático usando datos históricos.
     """
 
     def __init__(
@@ -43,6 +45,7 @@ class SiembraRecommendationService:
         persistence_context: PersistenceContext,
         model_name: str = "modelo_siembra",
         model_type: str = "random_forest_regressor",
+        risk_analyzer: Optional[SiembraRiskAnalyzer] = None,  # ← NUEVO
     ) -> None:
         """Inicializa el servicio de recomendaciones.
         
@@ -51,6 +54,7 @@ class SiembraRecommendationService:
             persistence_context: Contexto de persistencia
             model_name: Nombre del modelo a usar
             model_type: Tipo de modelo
+            risk_analyzer: Analizador de riesgos climáticos (opcional)
         """
         self.main_system_client = main_system_client
         self._persistence_context = persistence_context
@@ -66,18 +70,21 @@ class SiembraRecommendationService:
         self._date_converter = DateConverter()
         self._campaign_parser = CampaignParser()
         self._alternative_generator: Optional[AlternativeGenerator] = None
+        
+        # Analizador de riesgos climáticos
+        self._risk_analyzer = risk_analyzer or SiembraRiskAnalyzer(logger=logger)  # ← NUEVO
 
     async def generate_recommendation(
         self,
         request: SiembraRequest,
     ) -> SiembraRecommendationResponse:
-        """Genera una recomendación de siembra.
+        """Genera una recomendación de siembra con análisis de riesgo.
         
         Args:
             request: Solicitud con datos del lote y cultivo
             
         Returns:
-            Recomendación de siembra con fecha óptima, ventana y alternativa
+            Recomendación de siembra con fecha óptima, ventana, alternativa y riesgos
             
         Raises:
             ValueError: Si los datos del lote son inválidos
@@ -109,18 +116,42 @@ class SiembraRecommendationService:
 
         # 5. Crear ventana de siembra
         ventana = self._date_converter.create_window(fecha_optima)
+        ventana_inicio = fecha_optima - timedelta(days=2)
+        ventana_fin = fecha_optima + timedelta(days=2)
+        
+        # 6. Análisis de riesgos climáticos
+        try:
+            riesgos = await self._risk_analyzer.evaluate(
+                lote_data,
+                fecha_objetivo=fecha_optima,
+                ventana=(ventana_inicio, ventana_fin),
+            )
+            logger.info(
+                "Análisis de riesgos completado",
+                extra={
+                    "lote_id": request.lote_id,
+                    "num_riesgos": len(riesgos),
+                }
+            )
+        except Exception:
+            logger.exception(
+                "Error durante el análisis de riesgos de siembra",
+                extra={"lote_id": request.lote_id}
+            )
+            riesgos = [self._risk_analyzer.default_risk_message]
 
-        # 6. Construir recomendación principal
+        # 7. Construir recomendación principal con riesgos
         recomendacion_principal = RecomendacionPrincipalSiembra(
             fecha_optima=self._date_converter.date_to_string(fecha_optima),
             ventana=ventana,
             confianza=1.0,  # TODO: Implementar cálculo de confianza real
+            riesgos=riesgos,  
         )
 
-        # 7. Generar alternativa con escenario climático
+        # 8. Generar alternativa con escenario climático
         alternativa = self._alternative_generator.generate(feature_row, target_year)
 
-        # 8. Construir respuesta
+        # 9. Construir respuesta
         response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
@@ -134,7 +165,7 @@ class SiembraRecommendationService:
             datos_entrada=request.model_dump(mode="json"),
         )
 
-        # 9. Persistir recomendación
+        # 10. Persistir recomendación
         await self._persist_recommendation(request, response)
 
         logger.info(
@@ -144,6 +175,7 @@ class SiembraRecommendationService:
                 "cultivo": request.cultivo,
                 "fecha_optima": recomendacion_principal.fecha_optima,
                 "alternativa_escenario": alternativa.get("escenario_climatico", {}).get("nombre"),
+                "tiene_riesgos": len(riesgos) > 0,
             }
         )
 
