@@ -3,9 +3,8 @@ from uuid import uuid4
 from datetime import datetime, timezone
 import pytest
 import httpx
-from app.clients.main_system_client import MainSystemAPIClient
 
-from app.services.siembra_service import SiembraRecommendationService
+from app.services.siembra.recommendation_service import SiembraRecommendationService
 from app.dto.siembra import SiembraRequest
 
 
@@ -21,12 +20,62 @@ class _DummyPrediccionRepository:
 class _DummyPersistenceContext:
     def __init__(self):
         self.predicciones = _DummyPrediccionRepository()
+        self.modelos = None
 
 
 class _FakeMainSystemClient:
     async def get_lote_data(self, lote_id):
         # Minimal fake response; service currently doesn't use fields
         return {"id": str(lote_id)}
+
+
+class _StubPredictor:
+    _mapping = {"trigo": 150, "maiz": 200, "soja": 250}
+
+    def predict_day_of_year(self, df):
+        cultivo = df.iloc[0]["cultivo_anterior"]
+        return int(self._mapping.get(cultivo, 180))
+
+
+class _StubLoader:
+    def __init__(self):
+        self._feature_order = ["cultivo_anterior"]
+        self._feature_defaults = {"numeric": {}, "categorical": {"cultivo_anterior": "trigo"}}
+        self._performance_metrics = {"r2": 0.8}
+        self._metadata = {"version": "test"}
+
+    async def load(self):
+        return None
+
+    @property
+    def feature_order(self):
+        return self._feature_order
+
+    @property
+    def feature_defaults(self):
+        return self._feature_defaults
+
+    @property
+    def performance_metrics(self):
+        return self._performance_metrics
+
+    @property
+    def model(self):
+        return object()
+
+    @property
+    def preprocessor(self):
+        return object()
+
+    @property
+    def metadata(self):
+        return self._metadata
+
+
+def _prime_service_with_stub_model(service: SiembraRecommendationService):
+    # Inyectar loader y predictor stub para evitar dependencias de base de datos
+    service._model_loader = _StubLoader()  # type: ignore[attr-defined]
+    service._predictor = _StubPredictor()  # type: ignore[attr-defined]
 
 
 def test_generate_recommendation_returns_expected_shape():
@@ -42,6 +91,7 @@ def test_generate_recommendation_returns_expected_shape():
         main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     # When: executing the async method
     response = asyncio.run(service.generate_recommendation(request))
@@ -74,6 +124,7 @@ def test_generate_recommendation_propagates_503_from_client():
         main_system_client=_FailingClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     # When/Then: the exception propagates with status code 503
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
@@ -91,9 +142,10 @@ def test_service_returns_expected_shape():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
@@ -115,9 +167,10 @@ def test_service_handles_other_lote():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api"),
+        main_system_client=_FakeMainSystemClient(),
         persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
@@ -134,8 +187,10 @@ def test_service_varies_with_cultivo_for_same_lote():
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     soja = asyncio.run(
         service.generate_recommendation(
