@@ -130,7 +130,11 @@ class ClimateScenarioGenerator:
     
     @classmethod
     def get_random_scenario(cls) -> ClimateScenario:
-        """Selecciona y genera un escenario climático aleatorio."""
+        """Selecciona y genera un escenario climático aleatorio.
+        
+        Returns:
+            Escenario climático con valores aleatorios dentro de rangos definidos
+        """
         scenario_def = random.choice(cls.SCENARIOS)
         
         precip_min, precip_max = scenario_def['precip_range']
@@ -145,8 +149,7 @@ class ClimateScenarioGenerator:
     
     @classmethod
     def get_pros_contras(cls, scenario_name: str) -> Tuple[List[str], List[str]]:
-        """
-        Obtiene los pros y contras para un escenario específico.
+        """Obtiene los pros y contras para un escenario específico.
         
         Args:
             scenario_name: Nombre del escenario climático
@@ -165,25 +168,28 @@ class ClimateScenarioGenerator:
         feature_row: Dict[str, Any],
         scenario: ClimateScenario,
     ) -> Dict[str, Any]:
-        """
-        Aplica las modificaciones del escenario a las features climáticas.
+        """Aplica las modificaciones del escenario a las features climáticas.
         
         Args:
             feature_row: Diccionario con las features originales
             scenario: Escenario climático a aplicar
             
         Returns:
-            Diccionario con las features modificadas
+            Diccionario con las features modificadas (copia del original)
         """
         modified_row = feature_row.copy()
         
+        # Lista de features climáticas a modificar
+        precip_features = ["precipitacion_marzo", "precipitacion_abril", "precipitacion_mayo"]
+        temp_features = ["temp_media_marzo", "temp_media_abril", "temp_media_mayo"]
+        
         # Aplicar factor de precipitación
-        for precip_key in ["precipitacion_marzo", "precipitacion_abril", "precipitacion_mayo"]:
+        for precip_key in precip_features:
             if precip_key in modified_row and modified_row[precip_key] is not None:
                 modified_row[precip_key] = modified_row[precip_key] * scenario.precip_factor
         
         # Aplicar ajuste de temperatura
-        for temp_key in ["temp_media_marzo", "temp_media_abril", "temp_media_mayo"]:
+        for temp_key in temp_features:
             if temp_key in modified_row and modified_row[temp_key] is not None:
                 modified_row[temp_key] = modified_row[temp_key] + scenario.temp_adjustment
         

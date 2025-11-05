@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.predicciones import Prediccion
+from app.utils.type_converters import coerce_uuid
 
 
 class PrediccionRepository:
@@ -35,8 +36,8 @@ class PrediccionRepository:
         """Crea y persiste una predicción, retornando la entidad almacenada."""
 
         entidad = Prediccion(
-            lote_id=self._coerce_uuid(lote_id, field="lote_id"),
-            cliente_id=self._coerce_uuid(cliente_id, field="cliente_id"),
+            lote_id=coerce_uuid(lote_id, field="lote_id"),
+            cliente_id=coerce_uuid(cliente_id, field="cliente_id"),
             tipo_prediccion=tipo_prediccion,
             cultivo=cultivo,
             recomendacion_principal=dict(recomendacion_principal or {}),
@@ -76,12 +77,12 @@ class PrediccionRepository:
 
         if cliente_id:
             query = query.where(
-                Prediccion.cliente_id == self._coerce_uuid(cliente_id, field="cliente_id")
+                Prediccion.cliente_id == coerce_uuid(cliente_id, field="cliente_id")
             )
 
         if lote_id:
             query = query.where(
-                Prediccion.lote_id == self._coerce_uuid(lote_id, field="lote_id")
+                Prediccion.lote_id == coerce_uuid(lote_id, field="lote_id")
             )
 
         if cultivo:
@@ -93,14 +94,3 @@ class PrediccionRepository:
 
         result = await self._session.execute(query)
         return list(result.scalars().all())
-
-    @staticmethod
-    def _coerce_uuid(value: str | UUID, *, field: str) -> UUID:
-        """Validates that the provided value is a valid UUID."""
-
-        if isinstance(value, UUID):
-            return value
-        try:
-            return UUID(str(value))
-        except (ValueError, TypeError) as exc:
-            raise ValueError(f"{field} debe ser un UUID válido") from exc
