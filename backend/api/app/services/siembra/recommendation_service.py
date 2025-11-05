@@ -157,14 +157,14 @@ class SiembraRecommendationService:
         )
 
          # 9. Generar alternativa con escenario climático
-        # alternativa = self._alternative_generator.generate(feature_row, target_year)
+        alternativa = self._alternative_generator.generate(feature_row, target_year)
 
         # 10. Construir respuesta
         response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
-            alternativas=[],
+            alternativas=[alternativa],
             nivel_confianza=confianza,
             factores_considerados=[],  # TODO: Implementar factores
             costos_estimados={},  # TODO: Implementar costos
@@ -182,7 +182,7 @@ class SiembraRecommendationService:
                 "lote_id": request.lote_id,
                 "cultivo": request.cultivo,
                 "fecha_optima": recomendacion_principal.fecha_optima,
-                # "alternativa_escenario": alternativa.get("escenario_climatico", {}).get("nombre"),
+                "alternativa_escenario": alternativa.get("escenario_climatico", {}).get("nombre"),
                 "tiene_riesgos": len(riesgos) > 0,
             }
         )

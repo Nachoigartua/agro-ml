@@ -9,8 +9,16 @@
   gap: 2rem;
   padding: 2.5rem;
   border-radius: 24px;
-  background: radial-gradient(circle at top left, rgba(76, 175, 80, 0.18), transparent 55%),
-    radial-gradient(circle at top right, rgba(25, 118, 210, 0.15), transparent 60%),
+  background: radial-gradient(
+      circle at top left,
+      rgba(76, 175, 80, 0.18),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(25, 118, 210, 0.15),
+      transparent 60%
+    ),
     var(--surface-elevated, #ffffff);
   box-shadow: var(--shadow-lg);
 
@@ -278,45 +286,6 @@
   .result-subtitle {
     margin: 0.5rem 0 0 0;
     color: var(--text-secondary);
-
-  .confidence-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.25rem;
-    padding: 0.75rem 1rem;
-    border-radius: 16px;
-    font-weight: 600;
-
-    // Nuevo esquema por porcentajes
-    &.confidence-red {
-      background: rgba(244, 67, 54, 0.12);
-      color: var(--error);
-    }
-
-    &.confidence-yellow {
-      background: rgba(255, 193, 7, 0.16);
-      color: var(--warning);
-    }
-
-    &.confidence-green-light {
-      background: rgba(129, 199, 132, 0.18); // #81c784 con alpha
-      color: #2e7d32; // verde más legible sobre fondo claro
-    }
-
-    &.confidence-green-dark {
-      background: rgba(46, 125, 50, 0.15); // #2e7d32 con alpha
-      color: #1b5e20;
-    }
-
-    span {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-    }
-
-    strong {
-      font-size: 1.5rem;
-    }
   }
 }
 
@@ -425,7 +394,11 @@
     .scenario-badge {
       padding: 1rem;
       border-radius: 12px;
-      background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 193, 7, 0.05));
+      background: linear-gradient(
+        135deg,
+        rgba(255, 152, 0, 0.1),
+        rgba(255, 193, 7, 0.05)
+      );
       border: 1px solid rgba(255, 152, 0, 0.3);
 
       .scenario-name {
@@ -523,7 +496,7 @@
 
   pre {
     margin: 0;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
     font-size: 0.8rem;
     white-space: pre-wrap;
     word-break: break-word;
