@@ -1,9 +1,13 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@environments/environment';
-import { HealthStatusResponse } from '@shared/models/recommendations.model';
+import {
+  HealthStatusResponse,
+  SiembraHistoryFilters,
+  SiembraHistoryResponse,
+} from '@shared/models/recommendations.model';
 
 @Injectable({
   providedIn: 'root'
@@ -16,6 +20,25 @@ export class ApiService {
   healthCheck(): Observable<HealthStatusResponse> {
     return this.http
       .get<HealthStatusResponse>(`${this.baseUrl}/health`)
+      .pipe(catchError(this.handleError));
+  }
+
+  getSiembraHistory(
+    filters: SiembraHistoryFilters = {}
+  ): Observable<SiembraHistoryResponse> {
+    let params = new HttpParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) {
+        params = params.set(key, value);
+      }
+    });
+
+    return this.http
+      .get<SiembraHistoryResponse>(
+        `${this.baseUrl}/api/v1/recomendaciones/siembra/historial`,
+        { params }
+      )
       .pipe(catchError(this.handleError));
   }
 

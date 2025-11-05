@@ -47,6 +47,34 @@ export interface SiembraRecommendationResponse extends RecomendacionResponse<Rec
   cultivo: string;
 }
 
+export interface SiembraHistoryItem {
+  id: string;
+  lote_id: string;
+  cliente_id: string;
+  cultivo?: string;
+  campana?: string;
+  fecha_creacion?: string;
+  fecha_validez_desde?: string;
+  fecha_validez_hasta?: string;
+  nivel_confianza?: number;
+  recomendacion_principal: RecommendationWindow;
+  alternativas: RecommendationAlternative[];
+  modelo_version?: string;
+  datos_entrada: Record<string, unknown>;
+}
+
+export interface SiembraHistoryResponse {
+  total: number;
+  items: SiembraHistoryItem[];
+}
+
+export interface SiembraHistoryFilters {
+  cliente_id?: string;
+  lote_id?: string;
+  cultivo?: string;
+  campana?: string;
+}
+
 export interface HealthStatusResponse {
   status?: string;
   environment?: string;

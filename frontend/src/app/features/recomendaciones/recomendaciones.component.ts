@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { RecommendationsService } from '@core/services/recommendations.service';
+import { CAMPANAS_DISPONIBLES, CULTIVOS_DISPONIBLES, LOTES_DISPONIBLES } from '@shared/constants/farm.constants';
 import {
   RecommendationAlternative,
   RecommendationWindow,
@@ -22,12 +23,10 @@ export class RecomendacionesComponent implements OnInit {
   result: SiembraRecommendationResponse | null = null;
   error: string | null = null;
 
-  readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada'];
-  readonly lotes = [
-    { label: 'lote-001', value: 'c3f2f1ab-ca2e-4f8b-9819-377102c4d889' },
-    { label: 'lote-002', value: 'f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30' },
-    { label: 'lote-003', value: 'a17c9db2-5588-4b71-8f8a-6a54b1ad7eaa' }
-  ];
+  // Debe coincidir con los permitidos por el backend
+  readonly cultivos = [...CULTIVOS_DISPONIBLES];
+  readonly lotes = LOTES_DISPONIBLES.map((lote) => ({ ...lote }));
+  readonly campanas = [...CAMPANAS_DISPONIBLES];
 
   constructor(
     private readonly fb: FormBuilder,
