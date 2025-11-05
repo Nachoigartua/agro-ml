@@ -18,6 +18,7 @@ from ..dto.siembra import (
     RecomendacionPrincipalSiembra,
 )
 from ..exceptions import CampaignNotFoundError as ExternalCampaignNotFoundError
+from .confidence_service import ConfidenceService
 
 
 class SiembraRecommendationService:
@@ -43,8 +44,12 @@ class SiembraRecommendationService:
         self._numeric_defaults: Dict[str, float] = {}
         self._categorical_defaults: Dict[str, str] = {}
         self._model_metadata: Dict[str, Any] = {}
+        self._model_performance_metrics: Dict[str, Any] = {}
         self._model_loaded = False
         self._loaded_model_id: Optional[str] = None
+
+        # Servicio para estimar confianza de las predicciones a partir de métricas
+        self._confidence_service = ConfidenceService()
 
     async def _ensure_model_loaded(self) -> None:
         if self._model_loaded:
@@ -56,6 +61,10 @@ class SiembraRecommendationService:
         self._model_metadata.setdefault("model_version", entidad.version)
         self._model_metadata.setdefault("version", entidad.version)
         self._model_metadata.setdefault("model_name", entidad.nombre)
+        try:
+            self._model_performance_metrics = dict(entidad.metricas_performance or {})
+        except Exception:  # pragma: no cover - defensivo ante tipos no mapeables
+            self._model_performance_metrics = {}
         self.logger.info(
             "Modelo de siembra cargado desde base de datos (id=%s, version=%s).",
             self._loaded_model_id,
@@ -120,6 +129,16 @@ class SiembraRecommendationService:
         target_year = self._resolve_target_year_from_campaign(request)
         fecha_optima = self._day_of_year_to_date(predicted_day, target_year)
 
+        # Calcular nivel de confianza basado en métricas del modelo cargado
+        confianza = self._confidence_service.score_combined(
+            self._model_performance_metrics,
+            metadata=self._model_metadata,
+            lat=self._as_float(feature_row.get("latitud")),
+            lon=self._as_float(feature_row.get("longitud")),
+            cultivo=request.cultivo,
+            features=feature_row,
+        )
+
         ventana = [
             (fecha_optima - timedelta(days=2)).strftime("%d-%m-%Y"),
             (fecha_optima + timedelta(days=2)).strftime("%d-%m-%Y"),
@@ -127,7 +146,7 @@ class SiembraRecommendationService:
         recomendacion_principal = RecomendacionPrincipalSiembra(
             fecha_optima=fecha_optima.strftime("%d-%m-%Y"),
             ventana=ventana,
-            confianza=1.0,
+            confianza=confianza,
         )
 
         response = SiembraRecommendationResponse(
@@ -135,7 +154,7 @@ class SiembraRecommendationService:
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
             alternativas=[],
-            nivel_confianza=1.0,
+            nivel_confianza=confianza,
             factores_considerados=[],
             costos_estimados={},
             fecha_generacion=datetime.now(timezone.utc),

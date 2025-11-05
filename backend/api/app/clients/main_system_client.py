@@ -55,6 +55,48 @@ LOTES_DB: Dict[str, Dict[str, object]] = {
         },
         "cultivo_anterior": "maiz",
     },
+    "c3f2f1ab-ca2e-4f8b-9819-377102c4d879": {
+        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d879",
+        "nombre": "Lote Pergamino Sur",
+        "establecimiento_id": "est-123",
+        "superficie_ha": 120,
+        "ubicacion": {"latitud": -24.89, "longitud": -59.57},
+        "suelo": {
+            "tipo_suelo": "argiudol",
+            "ph_suelo": 6.5,
+            "materia_organica": 3.2,
+            "materia_organica_pct": 3.2,
+        },
+        "clima": {
+            "temp_media_marzo": 40.0,
+            "temp_media_abril": 21.0,
+            "temp_media_mayo": 13.0,
+            "precipitacion_marzo": 120.0,
+            "precipitacion_abril": 90.0,
+            "precipitacion_mayo": 60.0,
+        },
+    },
+    "c3f2f1ab-ca2e-4f8b-9819-377102c4d859": {
+        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d859",
+        "nombre": "Lote Pergamino Sur",
+        "establecimiento_id": "est-123",
+        "superficie_ha": 120,
+        "ubicacion": {"latitud": -26.89, "longitud": -64.57},
+        "suelo": {
+            "tipo_suelo": "argiudol",
+            "ph_suelo": 6.5,
+            "materia_organica": 3.2,
+            "materia_organica_pct": 3.2,
+        },
+        "clima": {
+            "temp_media_marzo": 21.0,
+            "temp_media_abril": 17.0,
+            "temp_media_mayo": 13.0,
+            "precipitacion_marzo": 120.0,
+            "precipitacion_abril": 90.0,
+            "precipitacion_mayo": 60.0,
+        },
+    },
 }
 
 

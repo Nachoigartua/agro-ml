@@ -1,21 +1,21 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
-import { RecommendationsService } from '@core/services/recommendations.service';
+import { Component, OnInit } from "@angular/core";
+import { FormBuilder, FormGroup, Validators } from "@angular/forms";
+import { finalize } from "rxjs/operators";
+import { RecommendationsService } from "@core/services/recommendations.service";
 import {
   RecommendationAlternative,
   RecommendationWindow,
   SiembraRecommendationRequest,
-  SiembraRecommendationResponse
-} from '@shared/models/recommendations.model';
+  SiembraRecommendationResponse,
+} from "@shared/models/recommendations.model";
 
 @Component({
-  selector: 'app-recomendaciones',
-  templateUrl: './recomendaciones.component.html',
-  styleUrls: ['./recomendaciones.component.scss']
+  selector: "app-recomendaciones",
+  templateUrl: "./recomendaciones.component.html",
+  styleUrls: ["./recomendaciones.component.scss"],
 })
 export class RecomendacionesComponent implements OnInit {
-  private readonly defaultCampana = '2025/2026';
+  private readonly defaultCampana = "2025/2026";
 
   recommendationForm: FormGroup;
   isLoading = false;
@@ -23,10 +23,12 @@ export class RecomendacionesComponent implements OnInit {
   error: string | null = null;
 
   // Debe coincidir con los permitidos por el backend
-  readonly cultivos = ['trigo', 'soja', 'maiz', 'cebada'];
+  readonly cultivos = ["trigo", "soja", "maiz", "cebada"];
   readonly lotes = [
-    { label: 'lote-001', value: 'c3f2f1ab-ca2e-4f8b-9819-377102c4d889' },
-    { label: 'lote-002', value: 'f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30' }
+    { label: "lote-001", value: "c3f2f1ab-ca2e-4f8b-9819-377102c4d889" },
+    { label: "lote-002", value: "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30" },
+    { label: "lote-003", value: "c3f2f1ab-ca2e-4f8b-9819-377102c4d879" },
+    { label: "lote-004", value: "f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30" },
   ];
 
   constructor(
@@ -63,36 +65,33 @@ export class RecomendacionesComponent implements OnInit {
           this.result = response;
         },
         error: (err) => {
-          this.error = err?.message ?? 'No se pudo generar la recomendacion';
-        }
+          this.error = err?.message ?? "No se pudo generar la recomendacion";
+        },
       });
   }
 
   getConfidenceClass(confidence: number): string {
-    if (confidence >= 0.8) {
-      return 'confidence-high';
-    }
+    // Acepta valores en [0,1] o [0,100]
+    const pct = Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence));
 
-    if (confidence >= 0.6) {
-      return 'confidence-medium';
-    }
-
-    return 'confidence-low';
+    if (pct <= 30) return "confidence-red";
+    if (pct <= 45) return "confidence-yellow";
+    // Rango no especificado (45-50): se mantiene amarillo para evitar saltos bruscos
+    if (pct < 50) return "confidence-yellow";
+    if (pct <= 70) return "confidence-green-light";
+    return "confidence-green-dark";
   }
 
   getConfidenceLabel(confidence: number): string {
-    if (confidence >= 0.8) {
-      return 'Alta';
-    }
-
-    if (confidence >= 0.6) {
-      return 'Media';
-    }
-
-    return 'Baja';
+    const pct = Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence));
+    if (pct <= 30) return "Baja";
+    if (pct <= 45) return "Moderada";
+    if (pct < 50) return "Moderada";
+    if (pct <= 70) return "Buena";
+    return "Alta";
   }
 
-  formatVentana(ventana: RecommendationWindow['ventana']): string {
+  formatVentana(ventana: RecommendationWindow["ventana"]): string {
     const [inicio, fin] = ventana;
     return `${this.formatDate(inicio)} - ${this.formatDate(fin)}`;
   }
@@ -107,17 +106,17 @@ export class RecomendacionesComponent implements OnInit {
       return value;
     }
     try {
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+      return new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
         hour12: false,
-        timeZone: 'America/Argentina/Buenos_Aires'
+        timeZone: "America/Argentina/Buenos_Aires",
       }).format(date);
     } catch {
-      return date.toLocaleString('es-AR');
+      return date.toLocaleString("es-AR");
     }
   }
 
@@ -126,7 +125,7 @@ export class RecomendacionesComponent implements OnInit {
       // Usar UUIDs válidos por defecto para evitar 422
       loteId: [this.lotes[0].value, Validators.required],
       cultivo: [this.cultivos[0], Validators.required],
-      campana: [this.defaultCampana, Validators.required]
+      campana: [this.defaultCampana, Validators.required],
     });
   }
 
@@ -140,7 +139,7 @@ export class RecomendacionesComponent implements OnInit {
       campana,
       fecha_consulta: fecha.toISOString(),
       // por ahora se envía un cliente fijo; luego vendrá de la sesión
-      cliente_id: '123e4567-e89b-12d3-a456-426614174001'
+      cliente_id: "123e4567-e89b-12d3-a456-426614174001",
     };
   }
 
@@ -148,7 +147,7 @@ export class RecomendacionesComponent implements OnInit {
     // El backend envía fechas de ventana y óptima como dd-mm-yyyy.
     const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/;
     if (ddmmyyyy.test(value)) {
-      const [dd, mm, yyyy] = value.split('-');
+      const [dd, mm, yyyy] = value.split("-");
       return `${dd}/${mm}/${yyyy}`;
     }
     const date = new Date(value);
@@ -156,14 +155,14 @@ export class RecomendacionesComponent implements OnInit {
       return value;
     }
     try {
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        timeZone: 'America/Argentina/Buenos_Aires'
+      return new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "America/Argentina/Buenos_Aires",
       }).format(date);
     } catch {
-      return date.toLocaleDateString('es-AR');
+      return date.toLocaleDateString("es-AR");
     }
   }
 }

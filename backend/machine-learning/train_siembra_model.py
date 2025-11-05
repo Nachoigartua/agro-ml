@@ -156,6 +156,32 @@ def main() -> int:
             r2 or float("nan"),
         )
     )
+    # Resumen de clustering para confianza (si disponible)
+    ck = artifacts.metadata.get("confidence_kmeans") if isinstance(artifacts.metadata, dict) else None
+    if isinstance(ck, dict):
+        ks = ck.get("k_selection", {}) if isinstance(ck.get("k_selection", {}), dict) else {}
+        selected_k = ks.get("selected_k")
+        sample_size = ks.get("sample_size")
+        dataset_size = ks.get("dataset_size")
+        print(
+            f"Confianza por zonas (K-Means): K={selected_k} (muestra {sample_size}/{dataset_size})."
+        )
+        scores = ks.get("scores") or {}
+        if isinstance(scores, dict) and scores:
+            try:
+                items = sorted(((int(k), float(v)) for k, v in scores.items()), key=lambda x: x[0])
+            except Exception:
+                items = [(k, v) for k, v in scores.items()]
+            txt = ", ".join(f"{k}:{v:.3f}" for k, v in items)
+            print(f"  silhouette: {txt}")
+        zc = ck.get("zone_counts") or {}
+        if isinstance(zc, dict) and zc:
+            try:
+                items = sorted(((int(k), int(v)) for k, v in zc.items()), key=lambda x: x[0])
+            except Exception:
+                items = [(k, v) for k, v in zc.items()]
+            txt = ", ".join(f"z{z}:{c}" for z, c in items)
+            print(f"  conteo por zona (test): {txt}")
     print(f"Modelo guardado en: {model_path}")
     print(f"Metricas guardadas en: {metrics_path}")
     print(f"Modelo almacenado en base de datos con id: {db_model_id}")

@@ -284,19 +284,25 @@
     border-radius: 16px;
     font-weight: 600;
 
-    &.confidence-high {
-      background: rgba(76, 175, 80, 0.12);
-      color: var(--success);
+    // Nuevo esquema por porcentajes
+    &.confidence-red {
+      background: rgba(244, 67, 54, 0.12);
+      color: var(--error);
     }
 
-    &.confidence-medium {
+    &.confidence-yellow {
       background: rgba(255, 193, 7, 0.16);
       color: var(--warning);
     }
 
-    &.confidence-low {
-      background: rgba(244, 67, 54, 0.12);
-      color: var(--error);
+    &.confidence-green-light {
+      background: rgba(129, 199, 132, 0.18); // #81c784 con alpha
+      color: #2e7d32; // verde más legible sobre fondo claro
+    }
+
+    &.confidence-green-dark {
+      background: rgba(46, 125, 50, 0.15); // #2e7d32 con alpha
+      color: #1b5e20;
     }
 
     span {
