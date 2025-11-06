@@ -1,5 +1,4 @@
 """Servicio para calcular nivel de confianza basado en métricas del modelo.
-
 Dado un diccionario de ``metricas_performance`` (por ejemplo, del último
 modelo activo), deriva un puntaje de confianza normalizado en [0, 1]. No
 realiza accesos a base de datos; el llamador debe proveer las métricas.
@@ -13,14 +12,12 @@ from ..core.logging import get_logger
 
 class ConfidenceService:
     """Calcula un score de confianza usando métricas de performance.
-
     Estrategia por defecto:
     - Usa ``r2`` tal cual (clamp 0..1).
     - Normaliza MAE y RMSE contra umbrales de referencia (en días) y los
       convierte a valores tipo precisión: ``1 - min(err/ref, 1)``.
     - Combina con pesos: r2=0.6, rmse=0.25, mae=0.15 (re-normalizando pesos
       si alguna métrica no está disponible).
-
     Umbrales por defecto (pensando en día-del-año):
     - ``mae_ref_days = 10``
     - ``rmse_ref_days = 15``
@@ -46,11 +43,9 @@ class ConfidenceService:
         cultivo: Optional[str] = None,
     ) -> float:
         """Calcula el score de confianza.
-
         - Si hay metadatos de clustering (``confidence_kmeans``) y coordenadas
           validas, usa primero metricas por zona y cultivo.
         - Caso contrario, cae en las metricas globales.
-
         Requisitos para el calculo: disponer de al menos una metrica utilizable
         (r2, rmse o mae) segun la fuente elegida.
         """
@@ -269,7 +264,6 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 
 def _nearest_center(lat: float, lon: float, centers: list) -> Optional[int]:
     """Devuelve el indice del centroide mas cercano.
-
     Usa distancia euclidea simple en coordenadas (lat, lon).
     """
     try:
@@ -287,3 +281,4 @@ def _nearest_center(lat: float, lon: float, centers: list) -> Optional[int]:
         return best_idx
     except Exception:
         return None
+    

@@ -1,4 +1,4 @@
-﻿"""Herramientas de entrenamiento para el modelo de recomendacion de siembra."""
+"""Herramientas de entrenamiento para el modelo de recomendacion de siembra."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -259,7 +259,6 @@ __all__ = [
     "TrainingArtifacts",
     "load_dataset",
     "train_model",
-    "save_metrics",
 ]
 
 

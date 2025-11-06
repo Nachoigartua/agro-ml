@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_data_path(custom_data_path: Path | None = None) -> Path:
+def resolve_dataset_path(custom_data_path: Path | None = None) -> Path:
     """Resuelve la ruta absoluta del dataset de entrenamiento."""
 
     ml_dir = Path(__file__).resolve().parent
@@ -115,7 +115,7 @@ def main() -> int:
     """Ejecuta el proceso de entrenamiento y deja artefactos listos para el backend."""
 
     args = parse_args()
-    data_path = resolve_data_path(args.data_path)
+    data_path = resolve_dataset_path(args.data_path)
 
     config = TrainingConfig(
         data_path=data_path,
@@ -175,7 +175,6 @@ def main() -> int:
                 items = [(k, v) for k, v in zc.items()]
             txt = ", ".join(f"z{z}:{c}" for z, c in items)
             print(f"  conteo por zona (test): {txt}")
-    print("Modelo y metricas almacenados en la base de datos `modelos_ml`.")
     print(f"Modelo almacenado en base de datos con id: {db_model_id}")
 
     return 0

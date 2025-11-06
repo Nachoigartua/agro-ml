@@ -15,10 +15,6 @@ from .date_converter import DateConverter
 logger = get_logger("siembra.alternative_generator")
 
 
-# Constante para la confianza de alternativas
-ALTERNATIVE_CONFIDENCE = 0.75
-
-
 class AlternativeGenerator:
     """Genera alternativas de siembra usando escenarios climáticos."""
 
@@ -39,7 +35,7 @@ class AlternativeGenerator:
         self._feature_order = feature_order
         self._date_converter = date_converter
 
-    def generate(self, feature_row: Dict[str, Any], target_year: int) -> Dict[str, Any]:
+    def generate(self, feature_row: Dict[str, Any], target_year: int, confianza: float) -> Dict[str, Any]:
         """Genera una alternativa de siembra basada en un escenario climático extremo.
         
         Args:
@@ -81,7 +77,7 @@ class AlternativeGenerator:
         return {
             "fecha": self._date_converter.date_to_string(fecha_alternativa),
             "ventana": ventana,
-            "confianza": ALTERNATIVE_CONFIDENCE,
+            "confianza": confianza,
             "pros": pros,
             "contras": contras,
             "escenario_climatico": {
