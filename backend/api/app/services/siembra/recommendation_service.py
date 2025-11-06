@@ -119,14 +119,8 @@ class SiembraRecommendationService:
         target_year = self._campaign_parser.parse_target_year(request.campana)
         fecha_optima = self._date_converter.day_of_year_to_date(predicted_day, target_year)
 
-        # 5. Calcular nivel de confianza combinando métricas y metadata del modelo
-        metadata = self._model_loader.metadata
-        confianza = self._confidence_service.score_for_prediction(
-            self._model_performance_metrics,
-            metadata=metadata,
-            features=feature_row,
-            cultivo=request.cultivo,
-        )
+        # 5. Calcular nivel de confianza basado en métricas del modelo cargado
+        confianza = self._confidence_service.score(self._model_performance_metrics)
 
         # 6. Crear ventana de siembra
         ventana = self._date_converter.create_window(fecha_optima)
@@ -163,27 +157,14 @@ class SiembraRecommendationService:
         )
 
         # 9. Generar alternativa con escenario climático
-        alternativas: List[Dict[str, Any]] = []
-        if self._alternative_generator is not None:
-            try:
-                alternativa = self._alternative_generator.generate(
-                    feature_row,
-                    target_year,
-                    confidence=confianza,
-                )
-                alternativas.append(alternativa)
-            except Exception:
-                logger.exception(
-                    "Error al generar la alternativa de siembra",
-                    extra={"lote_id": request.lote_id},
-                )
+        alternativa = self._alternative_generator.generate(feature_row, target_year, confianza)
 
         # 10. Construir respuesta
         response = SiembraRecommendationResponse(
             lote_id=request.lote_id,
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
-            alternativas=alternativas,
+            alternativas=[alternativa],
             nivel_confianza=confianza,
             factores_considerados=[],  # TODO: Implementar factores
             costos_estimados={},  # TODO: Implementar costos
@@ -201,7 +182,7 @@ class SiembraRecommendationService:
                 "lote_id": request.lote_id,
                 "cultivo": request.cultivo,
                 "fecha_optima": recomendacion_principal.fecha_optima,
-                "tiene_alternativas": bool(alternativas),
+                "alternativa_escenario": alternativa.get("escenario_climatico", {}).get("nombre"),
                 "tiene_riesgos": len(riesgos) > 0,
             }
         )
