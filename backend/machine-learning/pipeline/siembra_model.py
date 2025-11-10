@@ -166,17 +166,13 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
     model.fit(X_train_processed, y_train)
 
     predictions = model.predict(X_test_processed)
-    # Métricas generales + probabilidad de acertar ±N días
+    # Métricas generales (revertido: sin p_within ±N días)
     y_test_np = y_test.to_numpy()
     preds_np = np.asarray(predictions)
-    abs_err = np.abs(preds_np - y_test_np)
-    def _p_within(n: int) -> float:
-        return float(np.mean(abs_err <= n)) if len(abs_err) else float("nan")
     general_metrics = {
         "mae": float(mean_absolute_error(y_test_np, preds_np)),
         "rmse": float(np.sqrt(mean_squared_error(y_test_np, preds_np))),
         "r2": float(r2_score(y_test_np, preds_np)),
-        "p_within_days": {"5": _p_within(5), "7": _p_within(7)},
     }
 
     # --- Clustering sobre coordenadas (K-Means) ---
@@ -206,24 +202,9 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
 
     best_k = None
     best_score = -np.inf
-    best_model = None
-    # Rango dinámico de K y restricciones
-    def _k_range(n_eff: int) -> Tuple[int, int]:
-        k_base = max(2, int(round(np.sqrt(max(n_eff, 1)))))
-        k_min = max(2, int(np.floor(0.7 * k_base)))
-        k_cap = 50
-        k_max = min(int(np.ceil(1.3 * k_base)), k_cap, max(2, n_eff))
-        if k_min > k_max:
-            k_min, k_max = 2, min(10, max(2, n_eff))
-        return k_min, k_max
-
-    k_min, k_max = _k_range(n_eff)
-    silhouette_min = 0.20
-    min_cluster_size_abs = 100
-    min_cluster_frac = 0.005  # 0.5% del muestreo
-    tested_ks: List[int] = []
-    valid_candidates: List[Tuple[float, int, KMeans]] = []
-    for k in range(2, 16):  # buscar K óptimo automáticamente
+    # Revertido: selección simple por silhouette sin restricciones adicionales
+    tested_ks: List[int] = list(range(2, 16))
+    for k in tested_ks:  # buscar K óptimo automáticamente
         km = KMeans(n_clusters=k, random_state=config.random_state, n_init="auto")
         labels = km.fit_predict(coords_sample_scaled)
         try:
@@ -233,32 +214,7 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
         if score > best_score:
             best_score = score
             best_k = k
-            best_model = km
-
-    # Re-evaluar K con restricciones de silhouette y tamaño mínimo
-    try:
-        tested_ks_local: List[int] = []
-        valid_candidates_local: List[Tuple[float, int, KMeans]] = []
-        for k in range(k_min, k_max + 1):
-            tested_ks.append(k)
-            tested_ks_local.append(k)
-            km = KMeans(n_clusters=k, random_state=config.random_state, n_init="auto")
-            labels = km.fit_predict(coords_sample_scaled)
-            try:
-                score = silhouette_score(coords_sample_scaled, labels)
-            except Exception:
-                score = -np.inf
-            counts = np.bincount(labels, minlength=k)
-            min_required = max(int(min_cluster_frac * len(coords_sample_scaled)), min_cluster_size_abs)
-            size_ok = (counts.min() >= min_required) if counts.size > 0 else False
-            if (score >= silhouette_min) and size_ok and score > -np.inf:
-                valid_candidates.append((float(score), k, km))
-                valid_candidates_local.append((float(score), k, km))
-        if valid_candidates_local:
-            valid_candidates_local.sort(key=lambda x: (x[0], -x[1]), reverse=True)
-            best_score, best_k, best_model = valid_candidates_local[0]
-    except Exception:
-        pass
+            
 
     # Ajustar KMeans final sobre todas las coordenadas (escaladas con el scaler ajustado en sample)
     coords_all_scaled = scaler_coords.transform(coords_all)
@@ -275,7 +231,7 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
     coords_test_scaled = scaler_coords.transform(coords_test)
     test_clusters = kmeans_final.predict(coords_test_scaled)
 
-    # Métricas por cluster y por cultivo
+    # Métricas por cluster y por cultivo (revertido: sin p_within ±N días)
     def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
         if len(y_true) == 0:
             return {"mae": float("nan"), "rmse": float("nan"), "r2": float("nan")}
@@ -293,11 +249,6 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
     for cid in range(kmeans_final.n_clusters):
         mask = test_clusters == cid
         overall = _compute_metrics(y_test_np[mask], preds_np[mask])
-        try:
-            ae_over = np.abs(preds_np[mask] - y_test_np[mask])
-            overall["p_within_days"] = {"5": float(np.mean(ae_over <= 5)), "7": float(np.mean(ae_over <= 7))}
-        except Exception:
-            pass
 
         # Por cultivo
         by_crop: Dict[str, Any] = {}
@@ -306,8 +257,6 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
             crop_mask = mask & (cult_test == crop)
             try:
                 tmp_metrics = _compute_metrics(y_test_np[crop_mask], preds_np[crop_mask])
-                ae_crop = np.abs(preds_np[crop_mask] - y_test_np[crop_mask])
-                tmp_metrics["p_within_days"] = {"5": float(np.mean(ae_crop <= 5)), "7": float(np.mean(ae_crop <= 7))}
                 tmp_metrics["size"] = int(np.sum(crop_mask))
             except Exception:
                 tmp_metrics = _compute_metrics(y_test_np[crop_mask], preds_np[crop_mask])
@@ -326,30 +275,21 @@ def train_model(config: TrainingConfig) -> TrainingArtifacts:
         "silhouette": float(best_score if np.isfinite(best_score) else -1.0),
         "centroids": centroids_list,
         "clusters": clusters_metrics,
-        "k_search": {"min": int(k_min), "max": int(k_max), "tested": list(tested_ks), "best": int(best_k or kmeans_final.n_clusters)},
+        "k_search": {"tested": list(tested_ks), "best": int(best_k or kmeans_final.n_clusters)},
         "sample": {"size": int(sample_size), "fraction": float(sample_size / max(n_eff, 1)), "random_state": int(config.random_state)},
-        "constraints": {"silhouette_min": float(silhouette_min), "min_cluster_size_abs": int(min_cluster_size_abs), "min_cluster_frac": float(min_cluster_frac)},
     }
 
     # --- Feature stats: rangos por feature numérica ---
     numeric_ranges: Dict[str, Dict[str, float]] = {}
-    numeric_quantiles: Dict[str, Dict[str, float]] = {}
     for col in NUMERIC_FEATURES:
         if col in X.columns:
             col_values = pd.to_numeric(X[col], errors="coerce")
             col_min = float(np.nanmin(col_values))
             col_max = float(np.nanmax(col_values))
             numeric_ranges[col] = {"min": col_min, "max": col_max}
-            try:
-                p1 = float(np.nanpercentile(col_values, 1))
-                p99 = float(np.nanpercentile(col_values, 99))
-            except Exception:
-                p1, p99 = col_min, col_max
-            numeric_quantiles[col] = {"p1": p1, "p99": p99}
 
     feature_stats: Dict[str, Any] = {
         "numeric_ranges": numeric_ranges,
-        "numeric_quantiles": numeric_quantiles,
         "target_range": {"min": 1.0, "max": 366.0},
     }
 
