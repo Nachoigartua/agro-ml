@@ -17,7 +17,6 @@ class RecomendacionResponse(BaseModel):
     recomendacion_principal: Dict[str, Any]
     alternativas: List[Dict[str, Any]] = Field(default_factory=list)
     nivel_confianza: float = Field(ge=0.0, le=1.0)
-    factores_considerados: List[str] = Field(default_factory=list)
     costos_estimados: Dict[str, float] = Field(default_factory=dict)
     fecha_generacion: datetime
     datos_entrada: Dict[str, Any] = Field(default_factory=dict)

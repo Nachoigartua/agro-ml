@@ -170,7 +170,6 @@ class SiembraRecommendationService:
             recomendacion_principal=recomendacion_principal,
             alternativas=[alternativa],
             nivel_confianza=1.0,
-            factores_considerados=[],  # TODO: Implementar factores
             costos_estimados={},  # TODO: Implementar costos
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
@@ -182,7 +181,6 @@ class SiembraRecommendationService:
         try:
             response.nivel_confianza = conf
             response.recomendacion_principal.confianza = conf
-            response.factores_considerados = self._build_factores(conf_details)
         except Exception:
             pass
         await self._persist_recommendation(request, response)
@@ -335,28 +333,7 @@ class SiembraRecommendationService:
             fecha_validez_hasta=fecha_validez_hasta,
         )
 
-    def _build_factores(self, conf_details: dict) -> list[str]:
-        factores: list[str] = []
-        try:
-            gen = conf_details.get("general_score")
-            cl = conf_details.get("clustering", {})
-            fs = conf_details.get("feature_stats", {})
-            if isinstance(gen, (int, float)):
-                factores.append(f"general:{gen:.2f}")
-            if "selected_cluster" in cl and cl.get("selected_cluster") is not None:
-                factores.append(f"cluster_id:{cl.get('selected_cluster')}")
-            used = cl.get("used") or {}
-            if used:
-                if used.get("type") == "by_crop" and used.get("crop"):
-                    factores.append(f"cluster_metric:by_crop:{used.get('crop')}")
-                else:
-                    factores.append("cluster_metric:overall")
-            avg_dev = fs.get("avg_deviation")
-            if isinstance(avg_dev, (int, float)):
-                factores.append(f"ood_avg_dev:{avg_dev:.3f}")
-        except Exception:
-            pass
-        return factores
+    # Nota: Se eliminó el cálculo y exposición de 'factores_considerados'.
 
     def _map_prediccion_to_history_item(self, entidad: Prediccion) -> SiembraHistoryItem:
         """Convierte entidad ORM a DTO de historial.

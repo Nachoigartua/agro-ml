@@ -79,7 +79,7 @@ def test_generate_recommendation_returns_expected_shape():
     assert response.cultivo == request.cultivo
     assert 0.0 <= response.nivel_confianza <= 1.0
     assert isinstance(response.alternativas, list)
-    assert isinstance(response.factores_considerados, list)
+    # Campo 'factores_considerados' eliminado del contrato de respuesta
 
 def test_generate_recommendation_propagates_503_from_client():
     # Given: a request and a failing client that raises HTTP 503

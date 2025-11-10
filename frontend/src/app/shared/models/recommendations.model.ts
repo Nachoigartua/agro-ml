@@ -35,7 +35,6 @@ export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unkn
   recomendacion_principal: TPrincipal;
   alternativas: TAlternative[];
   nivel_confianza: number;
-  factores_considerados: string[];
   costos_estimados?: CostBreakdown;
   fecha_generacion: string;
   metadata?: Record<string, unknown>;

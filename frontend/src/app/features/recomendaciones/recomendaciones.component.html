@@ -143,12 +143,7 @@
             </div>
           </article>
 
-          <article class="result-card" *ngIf="result.factores_considerados?.length">
-            <h3>Factores considerados</h3>
-            <ul class="factor-grid">
-              <li *ngFor="let factor of result.factores_considerados">{{ factor }}</li>
-            </ul>
-          </article>
+          
 
           <article class="result-card" *ngIf="result.costos_estimados && (result.costos_estimados | keyvalue).length">
             <h3>Costos estimados</h3>
