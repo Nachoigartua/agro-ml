@@ -139,9 +139,10 @@ def main() -> int:
         )
     )
 
-    mae = artifacts.metrics.get("mae")
-    rmse = artifacts.metrics.get("rmse")
-    r2 = artifacts.metrics.get("r2")
+    general = artifacts.metrics.get("general", {}) if isinstance(artifacts.metrics, dict) else {}
+    mae = general.get("mae")
+    rmse = general.get("rmse")
+    r2 = general.get("r2")
     print(
         "Entrenamiento finalizado. Metricas -> MAE: {:.2f}, RMSE: {:.2f}, R2: {:.3f}".format(
             mae or float("nan"),

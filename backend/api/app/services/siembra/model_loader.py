@@ -36,6 +36,7 @@ class ModelLoader:
         self._model = None
         self._preprocessor = None
         self._metadata: Dict[str, Any] = {}
+        self._performance_metrics: Dict[str, Any] = {}
         self._loaded_model_id: Optional[str] = None
         self._is_loaded = False
 
@@ -56,6 +57,11 @@ class ModelLoader:
         self._preprocessor = preprocessor
         self._metadata = metadata or {}
         self._loaded_model_id = str(entidad.id)
+        # Guardar métricas de performance desde la entidad (JSONB)
+        try:
+            self._performance_metrics = dict(entidad.metricas_performance or {})
+        except Exception:
+            self._performance_metrics = {}
         
         # Asegurar que version esté presente
         if "model_version" not in self._metadata:
@@ -126,6 +132,12 @@ class ModelLoader:
         """Retorna los metadatos del modelo."""
         self._ensure_loaded()
         return self._metadata
+
+    @property
+    def performance_metrics(self) -> Dict[str, Any]:
+        """Retorna el diccionario de métricas de performance (JSONB)."""
+        self._ensure_loaded()
+        return self._performance_metrics
 
     @property
     def feature_order(self) -> list[str]:

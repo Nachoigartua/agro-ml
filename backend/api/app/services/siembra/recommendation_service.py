@@ -25,6 +25,7 @@ from .predictor import SiembraPredictor
 from .date_converter import DateConverter
 from .campaign_parser import CampaignParser
 from .alternative_generator import AlternativeGenerator
+from .confidence_service import ConfidenceEstimator
 from .risk_analyzer import SiembraRiskAnalyzer  # ← NUEVO
 
 
@@ -70,6 +71,7 @@ class SiembraRecommendationService:
         self._date_converter = DateConverter()
         self._campaign_parser = CampaignParser()
         self._alternative_generator: Optional[AlternativeGenerator] = None
+        self._confidence_estimator: Optional[ConfidenceEstimator] = None
         
         # Analizador de riesgos climáticos
         self._risk_analyzer = risk_analyzer or SiembraRiskAnalyzer(logger=logger)  # ← NUEVO
@@ -102,6 +104,16 @@ class SiembraRecommendationService:
             lote_data=lote_data,
             cultivo_override=request.cultivo
         )
+
+        # Calcular nivel de confianza desde métricas del modelo
+        try:
+            conf, conf_details = self._confidence_estimator.compute(
+                feature_row=feature_row,
+                cultivo=request.cultivo,
+            ) if self._confidence_estimator is not None else (1.0, {})
+        except Exception:
+            logger.exception("Fallo al calcular nivel de confianza; usando 1.0 por defecto")
+            conf, conf_details = 1.0, {}
 
         # 3. Predecir día del año
         dataframe = pd.DataFrame(
@@ -166,6 +178,13 @@ class SiembraRecommendationService:
         )
 
         # 10. Persistir recomendación
+        # Ajustar confianza y factores
+        try:
+            response.nivel_confianza = conf
+            response.recomendacion_principal.confianza = conf
+            response.factores_considerados = self._build_factores(conf_details)
+        except Exception:
+            pass
         await self._persist_recommendation(request, response)
 
         logger.info(
@@ -262,6 +281,11 @@ class SiembraRecommendationService:
                 date_converter=self._date_converter,
             )
 
+        if self._confidence_estimator is None:
+            self._confidence_estimator = ConfidenceEstimator(
+                performance_metrics=self._model_loader.performance_metrics,
+            )
+
     async def _persist_recommendation(
         self,
         request: SiembraRequest,
@@ -310,6 +334,29 @@ class SiembraRecommendationService:
             fecha_validez_desde=fecha_validez_desde,
             fecha_validez_hasta=fecha_validez_hasta,
         )
+
+    def _build_factores(self, conf_details: dict) -> list[str]:
+        factores: list[str] = []
+        try:
+            gen = conf_details.get("general_score")
+            cl = conf_details.get("clustering", {})
+            fs = conf_details.get("feature_stats", {})
+            if isinstance(gen, (int, float)):
+                factores.append(f"general:{gen:.2f}")
+            if "selected_cluster" in cl and cl.get("selected_cluster") is not None:
+                factores.append(f"cluster_id:{cl.get('selected_cluster')}")
+            used = cl.get("used") or {}
+            if used:
+                if used.get("type") == "by_crop" and used.get("crop"):
+                    factores.append(f"cluster_metric:by_crop:{used.get('crop')}")
+                else:
+                    factores.append("cluster_metric:overall")
+            avg_dev = fs.get("avg_deviation")
+            if isinstance(avg_dev, (int, float)):
+                factores.append(f"ood_avg_dev:{avg_dev:.3f}")
+        except Exception:
+            pass
+        return factores
 
     def _map_prediccion_to_history_item(self, entidad: Prediccion) -> SiembraHistoryItem:
         """Convierte entidad ORM a DTO de historial.
