@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -10,13 +10,13 @@ from ...core.logging import get_logger
 from ..climate_scenarios import ClimateScenarioGenerator
 from .predictor import SiembraPredictor
 from .date_converter import DateConverter
+from .confidence_service import ConfidenceEstimator
 
 
 logger = get_logger("siembra.alternative_generator")
 
 
-# Constante para la confianza de alternativas
-ALTERNATIVE_CONFIDENCE = 0.75
+# La confianza debe calcularse siempre; si falla, se propagará el error
 
 
 class AlternativeGenerator:
@@ -27,6 +27,8 @@ class AlternativeGenerator:
         predictor: SiembraPredictor,
         feature_order: list[str],
         date_converter: DateConverter,
+        *,
+        confidence_estimator: Optional[ConfidenceEstimator] = None,
     ):
         """Inicializa el generador de alternativas.
         
@@ -38,6 +40,7 @@ class AlternativeGenerator:
         self._predictor = predictor
         self._feature_order = feature_order
         self._date_converter = date_converter
+        self._confidence_estimator = confidence_estimator
 
     def generate(self, feature_row: Dict[str, Any], target_year: int) -> Dict[str, Any]:
         """Genera una alternativa de siembra basada en un escenario climático extremo.
@@ -71,17 +74,28 @@ class AlternativeGenerator:
         df = pd.DataFrame([modified_row], columns=self._feature_order)
         alt_day = self._predictor.predict_day_of_year(df)
         fecha_alternativa = self._date_converter.day_of_year_to_date(alt_day, target_year)
-        
+
         # Generar ventana de siembra
         ventana = self._date_converter.create_window(fecha_alternativa)
-        
+
         # Obtener pros y contras del escenario
         pros, contras = ClimateScenarioGenerator.get_pros_contras(scenario.nombre)
+
+        # Calcular nivel de confianza para la alternativa (sin fallback)
+        if self._confidence_estimator is None:
+            raise RuntimeError("ConfidenceEstimator no inicializado para calcular confianza de alternativa")
+        cultivo_alt = feature_row.get("cultivo_anterior")
+        conf, _details = self._confidence_estimator.compute(
+            feature_row=modified_row,
+            cultivo=cultivo_alt,
+        )
+        # Clip por seguridad
+        alt_confianza = max(0.0, min(1.0, float(conf)))
         
         return {
             "fecha": self._date_converter.date_to_string(fecha_alternativa),
             "ventana": ventana,
-            "confianza": ALTERNATIVE_CONFIDENCE,
+            "confianza": alt_confianza,
             "pros": pros,
             "contras": contras,
             "escenario_climatico": {

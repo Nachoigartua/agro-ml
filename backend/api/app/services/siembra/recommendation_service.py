@@ -105,15 +105,13 @@ class SiembraRecommendationService:
             cultivo_override=request.cultivo
         )
 
-        # Calcular nivel de confianza desde métricas del modelo
-        try:
-            conf, conf_details = self._confidence_estimator.compute(
-                feature_row=feature_row,
-                cultivo=request.cultivo,
-            ) if self._confidence_estimator is not None else (1.0, {})
-        except Exception:
-            logger.exception("Fallo al calcular nivel de confianza; usando 1.0 por defecto")
-            conf, conf_details = 1.0, {}
+        # Calcular nivel de confianza desde métricas del modelo (sin fallback)
+        if self._confidence_estimator is None:
+            raise RuntimeError("ConfidenceEstimator no inicializado; no es posible calcular nivel de confianza")
+        conf, conf_details = self._confidence_estimator.compute(
+            feature_row=feature_row,
+            cultivo=request.cultivo,
+        )
 
         # 3. Predecir día del año
         dataframe = pd.DataFrame(
@@ -156,7 +154,7 @@ class SiembraRecommendationService:
         recomendacion_principal = RecomendacionPrincipalSiembra(
             fecha_optima=self._date_converter.date_to_string(fecha_optima),
             ventana=ventana,
-            confianza=1.0,  # TODO: Implementar cálculo de confianza real
+            confianza=conf,
             riesgos=riesgos,  
         )
 
@@ -169,7 +167,7 @@ class SiembraRecommendationService:
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
             alternativas=[alternativa],
-            nivel_confianza=1.0,
+            nivel_confianza=conf,
             costos_estimados={},  # TODO: Implementar costos
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
@@ -177,12 +175,6 @@ class SiembraRecommendationService:
         )
 
         # 10. Persistir recomendación
-        # Ajustar confianza y factores
-        try:
-            response.nivel_confianza = conf
-            response.recomendacion_principal.confianza = conf
-        except Exception:
-            pass
         await self._persist_recommendation(request, response)
 
         logger.info(
@@ -272,16 +264,17 @@ class SiembraRecommendationService:
                 preprocessor=self._model_loader.preprocessor,
             )
 
+        if self._confidence_estimator is None:
+            self._confidence_estimator = ConfidenceEstimator(
+                performance_metrics=self._model_loader.performance_metrics,
+            )
+
         if self._alternative_generator is None:
             self._alternative_generator = AlternativeGenerator(
                 predictor=self._predictor,
                 feature_order=self._model_loader.feature_order,
                 date_converter=self._date_converter,
-            )
-
-        if self._confidence_estimator is None:
-            self._confidence_estimator = ConfidenceEstimator(
-                performance_metrics=self._model_loader.performance_metrics,
+                confidence_estimator=self._confidence_estimator,
             )
 
     async def _persist_recommendation(
