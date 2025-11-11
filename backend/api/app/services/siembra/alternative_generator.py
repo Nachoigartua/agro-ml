@@ -15,10 +15,6 @@ from .confidence_service import ConfidenceEstimator
 
 logger = get_logger("siembra.alternative_generator")
 
-
-# La confianza debe calcularse siempre; si falla, se propagará el error
-
-
 class AlternativeGenerator:
     """Genera alternativas de siembra usando escenarios climáticos."""
 
