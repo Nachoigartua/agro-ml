@@ -4,6 +4,9 @@
 
 .mini-map-header {
   padding: 1rem 1.25rem 0.5rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .mini-map {
@@ -12,4 +15,11 @@
   border-bottom-left-radius: var(--border-radius);
   border-bottom-right-radius: var(--border-radius);
   overflow: hidden;
+}
+
+.clear-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
 }

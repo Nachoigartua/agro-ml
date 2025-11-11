@@ -18,7 +18,7 @@
     <div class="filter-grid">
       <div class="filter-control">
         <label for="filter-lote">Lote</label>
-        <select id="filter-lote" formControlName="lote_id">
+        <select id="filter-lote" formControlName="lote_id" (change)="onLoteDropdownChange($event)" (click)="onLoteDropdownClick($event)">
           <option value="">Todos</option>
           <option *ngFor="let lote of availableLotes" [value]="lote.value">{{ lote.label }}</option>
         </select>
@@ -135,8 +135,7 @@
     </div>
     <aside class="right-col">
       <!-- Mini mapa con ubicación de lotes en Argentina -->
-      <app-mini-map></app-mini-map>
+      <app-mini-map (selectedLotesChange)="onSelectedLotesChange($event)"></app-mini-map>
     </aside>
   </section>
 </div>
-

@@ -30,8 +30,21 @@ export class ApiService {
     let params = new HttpParams();
 
     Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        params = params.set(key, value);
+      if (value === undefined || value === null) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        // Si hay múltiples lotes, no enviamos el filtro al backend (se filtra localmente)
+        if (value.length === 1 && value[0]) {
+          params = params.set(key, value[0]);
+        }
+        return;
+      }
+
+      const str = String(value).trim();
+      if (str.length > 0) {
+        params = params.set(key, str);
       }
     });
 
