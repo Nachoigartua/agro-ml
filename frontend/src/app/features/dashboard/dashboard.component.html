@@ -48,88 +48,95 @@
     </div>
   </section>
 
-  <!-- Mini mapa con ubicación de lotes en Argentina -->
-  <app-mini-map></app-mini-map>
+  <!-- Contenido en dos columnas: historial izquierda, mapa derecha -->
+  <section class="content-columns">
+    <div class="left-col">
+      <section class="panel loading-panel" *ngIf="isLoading">
+        <div class="loading"></div>
+        <p>Cargando historial de predicciones...</p>
+      </section>
 
-  <section class="panel loading-panel" *ngIf="isLoading">
-    <div class="loading"></div>
-    <p>Cargando historial de predicciones...</p>
-  </section>
-
-  <section class="panel alert-panel" *ngIf="error && !isLoading">
-    <div class="alert alert-error">
-      <div>
-        <strong>Error:</strong> {{ error }}
-        <p>No pudimos recuperar el historial de predicciones. Intenta nuevamente.</p>
-      </div>
-      <button class="btn btn-secondary" type="button" (click)="loadDashboardData()">Reintentar</button>
-    </div>
-  </section>
-
-  <section class="history-panel" *ngIf="!isLoading && !error">
-    <header class="history-header">
-      <div>
-        <h2>Últimas predicciones</h2>
-        <p>Mostrando {{ historyItems.length }} coincidencias filtradas de {{ totalHistory }} registros disponibles.</p>
-      </div>
-      <button class="btn btn-secondary" type="button" (click)="loadDashboardData()">Actualizar</button>
-    </header>
-
-    <ng-container *ngIf="historyItems.length; else noResults">
-      <div class="table-wrapper">
-        <table class="history-table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Lote</th>
-              <th>Cultivo</th>
-              <th>Campaña</th>
-              <th>Confianza</th>
-              <th>Fecha óptima</th>
-              <th>Ventana recomendada</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of historyItems">
-              <td>{{ item.fecha_creacion ? (item.fecha_creacion | date:'short') : '—' }}</td>
-              <td>{{ getLoteLabel(item.lote_id) }}</td>
-              <td class="capitalize">{{ item.cultivo || '—' }}</td>
-              <td>{{ item.campana || '—' }}</td>
-              <td>
-                <ng-container *ngIf="resolveConfidence(item) as confidence; else dash">
-                  {{ confidence | percent:'1.0-0' }}
-                </ng-container>
-              </td>
-              <td>{{ formatRecommendationDate(item.recomendacion_principal.fecha_optima) }}</td>
-              <td class="window-cell">
-                <ng-container *ngIf="item.recomendacion_principal.ventana.length === 2; else dash">
-                  <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[0]) }}</span>
-                  <span class="range-separator">→</span>
-                  <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
-                </ng-container>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </ng-container>
-
-    <ng-template #noResults>
-      <ng-container *ngIf="!hasServerResults; else noMatches">
-        <div class="empty-state">
-          <h3>No se registran predicciones aún</h3>
-          <p>Genera una recomendación desde la sección de recomendaciones para comenzar a ver el historial aquí.</p>
+      <section class="panel alert-panel" *ngIf="error && !isLoading">
+        <div class="alert alert-error">
+          <div>
+            <strong>Error:</strong> {{ error }}
+            <p>No pudimos recuperar el historial de predicciones. Intenta nuevamente.</p>
+          </div>
+          <button class="btn btn-secondary" type="button" (click)="loadDashboardData()">Reintentar</button>
         </div>
-      </ng-container>
-    </ng-template>
+      </section>
 
-    <ng-template #noMatches>
-      <div class="empty-state">
-        <h3>Sin coincidencias</h3>
-        <p>Ajusta los filtros o limpia la búsqueda para ver resultados.</p>
-      </div>
-    </ng-template>
+      <section class="history-panel" *ngIf="!isLoading && !error">
+        <header class="history-header">
+          <div>
+            <h2>Últimas predicciones</h2>
+            <p>Mostrando {{ historyItems.length }} coincidencias filtradas de {{ totalHistory }} registros disponibles.</p>
+          </div>
+          <button class="btn btn-secondary" type="button" (click)="loadDashboardData()">Actualizar</button>
+        </header>
 
-    <ng-template #dash>—</ng-template>
+        <ng-container *ngIf="historyItems.length; else noResults">
+          <div class="table-wrapper">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Lote</th>
+                  <th>Cultivo</th>
+                  <th>Campaña</th>
+                  <th>Confianza</th>
+                  <th>Fecha óptima</th>
+                  <th>Ventana recomendada</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of historyItems">
+                  <td>{{ item.fecha_creacion ? (item.fecha_creacion | date:'short') : '—' }}</td>
+                  <td>{{ getLoteLabel(item.lote_id) }}</td>
+                   <td class="capitalize">{{ item.cultivo || '—' }}</td>
+              <td>{{ item.campana || '—' }}</td>
+                  <td>
+                    <ng-container *ngIf="resolveConfidence(item) as confidence; else dash">
+                      {{ confidence | percent:'1.0-0' }}
+                    </ng-container>
+                  </td>
+                  <td>{{ formatRecommendationDate(item.recomendacion_principal.fecha_optima) }}</td>
+                  <td class="window-cell">
+                    <ng-container *ngIf="item.recomendacion_principal.ventana.length === 2; else dash">
+                      <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[0]) }}</span>
+                      <span class="range-separator">→</span>
+                      <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
+                    </ng-container>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+
+        <ng-template #noResults>
+          <ng-container *ngIf="!hasServerResults; else noMatches">
+            <div class="empty-state">
+              <h3>No se registran predicciones aún</h3>
+          <p>Genera una recomendación desde la sección de recomendaciones para comenzar a ver el historial aquí.</p>
+            </div>
+          </ng-container>
+        </ng-template>
+
+        <ng-template #noMatches>
+          <div class="empty-state">
+            <h3>Sin coincidencias</h3>
+             <p>Ajusta los filtros o limpia la búsqueda para ver resultados.</p>
+          </div>
+        </ng-template>
+
+        <ng-template #dash>—</ng-template>
+      </section>
+    </div>
+    <aside class="right-col">
+      <!-- Mini mapa con ubicación de lotes en Argentina -->
+      <app-mini-map></app-mini-map>
+    </aside>
   </section>
 </div>
+
