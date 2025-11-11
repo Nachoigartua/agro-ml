@@ -68,7 +68,10 @@ class ConfidenceEstimator:
         confidence = (
             w.general * gen_score + w.clustering * cl_score + w.feature_stats * fs_score
         )
-        confidence = max(0.0, min(1.0, float(confidence)))
+        confidence = float(confidence)
+        # Validar rango esperado sin hacer clip: si se viola, hay un problema aguas arriba
+        if not (0.0 <= confidence <= 1.0):
+            raise ValueError(f"Confidence fuera de rango: {confidence}; esperado en [0, 1]")
 
         details = {
             "general_score": gen_score,

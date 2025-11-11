@@ -89,8 +89,8 @@ class AlternativeGenerator:
             feature_row=modified_row,
             cultivo=cultivo_alt,
         )
-        # Clip por seguridad
-        alt_confianza = max(0.0, min(1.0, float(conf)))
+        # La validación de rango [0,1] ocurre dentro del ConfidenceEstimator
+        alt_confianza = float(conf)
         
         return {
             "fecha": self._date_converter.date_to_string(fecha_alternativa),
