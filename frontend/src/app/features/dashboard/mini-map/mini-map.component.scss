@@ -1,0 +1,16 @@
+.mini-map-card {
+  padding: 0;
+}
+
+.mini-map-header {
+  padding: 1rem 1.25rem 0.5rem 1.25rem;
+}
+
+.mini-map {
+  height: 280px;
+  width: 100%;
+  border-bottom-left-radius: var(--border-radius);
+  border-bottom-right-radius: var(--border-radius);
+  overflow: hidden;
+}
+

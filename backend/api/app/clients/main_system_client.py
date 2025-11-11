@@ -89,3 +89,23 @@ class MainSystemAPIClient:
                     extra={"lote_id": lote_id, "error": str(exc)}
                 )
                 raise
+
+    async def list_lotes(self) -> Dict:
+        """Obtiene el listado de lotes desde el sistema principal.
+
+        Returns:
+            Estructura JSON con lotes. Se espera una lista o un objeto con items.
+
+        Raises:
+            httpx.HTTPError en caso de error HTTP o de conexión.
+        """
+        url = f"{self.base_url}/api/lotes"
+
+        headers = {}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()

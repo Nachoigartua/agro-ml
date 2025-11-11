@@ -8,6 +8,7 @@ import {
   SiembraHistoryFilters,
   SiembraHistoryResponse,
 } from '@shared/models/recommendations.model';
+import { LotesListResponse } from '@shared/models/lotes.model';
 
 @Injectable({
   providedIn: 'root'
@@ -39,6 +40,12 @@ export class ApiService {
         `${this.baseUrl}/api/v1/recomendaciones/siembra/historial`,
         { params }
       )
+      .pipe(catchError(this.handleError));
+  }
+
+  getLotes(): Observable<LotesListResponse> {
+    return this.http
+      .get<LotesListResponse>(`${this.baseUrl}/api/v1/lotes`)
       .pipe(catchError(this.handleError));
   }
 
