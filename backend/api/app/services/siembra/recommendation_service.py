@@ -25,6 +25,7 @@ from .predictor import SiembraPredictor
 from .date_converter import DateConverter
 from .campaign_parser import CampaignParser
 from .alternative_generator import AlternativeGenerator
+from .confidence_service import ConfidenceEstimator
 from .risk_analyzer import SiembraRiskAnalyzer  # ← NUEVO
 
 
@@ -70,6 +71,7 @@ class SiembraRecommendationService:
         self._date_converter = DateConverter()
         self._campaign_parser = CampaignParser()
         self._alternative_generator: Optional[AlternativeGenerator] = None
+        self._confidence_estimator: Optional[ConfidenceEstimator] = None
         
         # Analizador de riesgos climáticos
         self._risk_analyzer = risk_analyzer or SiembraRiskAnalyzer(logger=logger)  # ← NUEVO
@@ -101,6 +103,14 @@ class SiembraRecommendationService:
         feature_row = self._feature_builder.build(
             lote_data=lote_data,
             cultivo_override=request.cultivo
+        )
+
+        # Calcular nivel de confianza desde métricas del modelo (sin fallback)
+        if self._confidence_estimator is None:
+            raise RuntimeError("ConfidenceEstimator no inicializado; no es posible calcular nivel de confianza")
+        conf, conf_details = self._confidence_estimator.compute(
+            feature_row=feature_row,
+            cultivo=request.cultivo,
         )
 
         # 3. Predecir día del año
@@ -144,7 +154,7 @@ class SiembraRecommendationService:
         recomendacion_principal = RecomendacionPrincipalSiembra(
             fecha_optima=self._date_converter.date_to_string(fecha_optima),
             ventana=ventana,
-            confianza=1.0,  # TODO: Implementar cálculo de confianza real
+            confianza=conf,
             riesgos=riesgos,  
         )
 
@@ -157,8 +167,7 @@ class SiembraRecommendationService:
             tipo_recomendacion="siembra",
             recomendacion_principal=recomendacion_principal,
             alternativas=[alternativa],
-            nivel_confianza=1.0,
-            factores_considerados=[],  # TODO: Implementar factores
+            nivel_confianza=conf,
             costos_estimados={},  # TODO: Implementar costos
             fecha_generacion=datetime.now(timezone.utc),
             cultivo=request.cultivo,
@@ -255,11 +264,17 @@ class SiembraRecommendationService:
                 preprocessor=self._model_loader.preprocessor,
             )
 
+        if self._confidence_estimator is None:
+            self._confidence_estimator = ConfidenceEstimator(
+                performance_metrics=self._model_loader.performance_metrics,
+            )
+
         if self._alternative_generator is None:
             self._alternative_generator = AlternativeGenerator(
                 predictor=self._predictor,
                 feature_order=self._model_loader.feature_order,
                 date_converter=self._date_converter,
+                confidence_estimator=self._confidence_estimator,
             )
 
     async def _persist_recommendation(
@@ -310,6 +325,8 @@ class SiembraRecommendationService:
             fecha_validez_desde=fecha_validez_desde,
             fecha_validez_hasta=fecha_validez_hasta,
         )
+
+    # Nota: Se eliminó el cálculo y exposición de 'factores_considerados'.
 
     def _map_prediccion_to_history_item(self, entidad: Prediccion) -> SiembraHistoryItem:
         """Convierte entidad ORM a DTO de historial.
