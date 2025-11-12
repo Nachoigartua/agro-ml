@@ -20,6 +20,8 @@ class RecomendacionResponse(BaseModel):
     costos_estimados: Dict[str, float] = Field(default_factory=dict)
     fecha_generacion: datetime
     datos_entrada: Dict[str, Any] = Field(default_factory=dict)
+    # Se agregó este campo para que el front reciba el ID guardado y pueda solicitar ese PDF puntual.
+    prediccion_id: Optional[str] = Field(default=None, description="ID de la predicción guardada")
 
 
 class RecomendacionPrincipalSiembra(BaseModel):

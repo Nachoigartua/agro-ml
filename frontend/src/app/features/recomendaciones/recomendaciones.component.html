@@ -162,7 +162,24 @@
         </div>
 
         <footer class="result-footer">
-          <span>Generado el {{ formatDateTime(result.fecha_generacion) }}</span>
+          <div class="footer-content">
+            <span>Generado el {{ formatDateTime(result.fecha_generacion) }}</span>
+          </div>
+          <button 
+            type="button" 
+            class="btn btn-secondary" 
+            (click)="downloadPdf()" 
+            [disabled]="isDownloadingPdf"
+            *ngIf="result"
+          >
+            <span *ngIf="!isDownloadingPdf">
+              📥 Descargar PDF
+            </span>
+            <span *ngIf="isDownloadingPdf">
+              <span class="loading"></span>
+              Descargando...
+            </span>
+          </button>
         </footer>
       </ng-container>
     </section>

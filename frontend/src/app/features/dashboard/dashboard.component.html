@@ -84,6 +84,7 @@
               <th>Confianza</th>
               <th>Fecha óptima</th>
               <th>Ventana recomendada</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -104,6 +105,18 @@
                   <span class="range-separator">→</span>
                   <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
                 </ng-container>
+              </td>
+              <td class="actions-cell">
+                <button 
+                  type="button" 
+                  class="btn btn-icon" 
+                  (click)="downloadRecommendationPdf(item)"
+                  [disabled]="isDownloadingPdf(item.id)"
+                  title="Descargar PDF de esta recomendación"
+                >
+                  <span *ngIf="!isDownloadingPdf(item.id)">📥</span>
+                  <span *ngIf="isDownloadingPdf(item.id)" class="loading"></span>
+                </button>
               </td>
             </tr>
           </tbody>

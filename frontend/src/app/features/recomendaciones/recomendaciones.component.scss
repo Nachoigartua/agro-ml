@@ -492,10 +492,24 @@
 }
 
 .result-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
   margin-top: 2rem;
-  text-align: right;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+
+  .footer-content {
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
 
 .alert-error {

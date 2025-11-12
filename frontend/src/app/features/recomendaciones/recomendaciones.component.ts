@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { RecommendationsService } from '@core/services/recommendations.service';
+import { PdfDownloadService } from '@core/services/pdf-download.service';
 import { CAMPANAS_DISPONIBLES, CULTIVOS_DISPONIBLES, LOTES_DISPONIBLES } from '@shared/constants/farm.constants';
 import {
   RecommendationAlternative,
@@ -22,6 +23,7 @@ export class RecomendacionesComponent implements OnInit {
   isLoading = false;
   result: SiembraRecommendationResponse | null = null;
   error: string | null = null;
+  isDownloadingPdf = false;
 
   // Debe coincidir con los permitidos por el backend
   readonly cultivos = [...CULTIVOS_DISPONIBLES];
@@ -30,7 +32,8 @@ export class RecomendacionesComponent implements OnInit {
 
   constructor(
     private readonly fb: FormBuilder,
-    private readonly recommendationsService: RecommendationsService
+    private readonly recommendationsService: RecommendationsService,
+    private readonly pdfDownloadService: PdfDownloadService
   ) {
     this.recommendationForm = this.createForm();
   }
@@ -61,6 +64,40 @@ export class RecomendacionesComponent implements OnInit {
         },
         error: (err) => {
           this.error = err?.message ?? 'No se pudo generar la recomendacion';
+        }
+      });
+  }
+
+  /**
+   * Descarga el PDF de la recomendación actual
+   */
+  downloadPdf(): void {
+    if (!this.result) {
+      console.warn('No hay recomendación para descargar');
+      return;
+    }
+
+    // Obtener el ID de la predicción desde la respuesta del servidor
+    const prediccionId = this.result.prediccion_id;
+    if (!prediccionId) {
+      console.error('No se encontró el ID de predicción en la respuesta');
+      alert('No se pudo obtener el ID de la predicción. Por favor, intenta nuevamente.');
+      return;
+    }
+    
+    this.isDownloadingPdf = true;
+    
+    this.pdfDownloadService
+      .downloadRecommendationPdf(prediccionId, this.result.cultivo)
+      .pipe(finalize(() => (this.isDownloadingPdf = false)))
+      .subscribe({
+        next: (blob: Blob) => {
+          const filename = `recomendacion_${this.result!.cultivo}_${new Date().getTime()}.pdf`;
+          this.pdfDownloadService.triggerDownload(blob, filename);
+        },
+        error: (err: any) => {
+          console.error('Error al descargar PDF:', err);
+          alert('No se pudo descargar el PDF. Por favor, intenta nuevamente.');
         }
       });
   }

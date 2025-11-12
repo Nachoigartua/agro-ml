@@ -39,6 +39,7 @@ export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unkn
   fecha_generacion: string;
   metadata?: Record<string, unknown>;
   datos_entrada?: Record<string, unknown>;
+  prediccion_id?: string;
 }
 
 export interface SiembraRecommendationResponse extends RecomendacionResponse<RecommendationWindow, RecommendationAlternative> {

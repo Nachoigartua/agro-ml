@@ -5,11 +5,15 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 RUN mkdir -p /workspace/backend
 
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema 
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    #lib dependencias para pdf
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements

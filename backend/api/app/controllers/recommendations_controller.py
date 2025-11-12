@@ -4,6 +4,7 @@ from uuid import UUID
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from ..core.logging import get_logger
 from ..dependencies import get_siembra_service
@@ -13,12 +14,14 @@ from ..dto.siembra import (
     SiembraRequest,
 )
 from ..services.siembra.recommendation_service import SiembraRecommendationService
+from ..services.pdf_generator import PDFGeneratorService
 from ..exceptions import CampaignNotFoundError
 
 
 logger = get_logger("recommendations_controller")
 
 router = APIRouter(prefix="/api/v1/recomendaciones", tags=["recomendaciones"])
+pdf_service = PDFGeneratorService()
 
 
 @router.post(
@@ -115,3 +118,100 @@ async def listar_historial_siembra(
         ) from exc
 
     return SiembraHistoryResponse(total=len(historial), items=historial)
+
+
+@router.post(
+    "/siembra/{prediccion_id}/pdf",
+    status_code=status.HTTP_200_OK,
+)
+async def descargar_recomendacion_pdf(
+    prediccion_id: UUID,
+    service: SiembraRecommendationService = Depends(get_siembra_service),
+) -> StreamingResponse:
+    """Descarga el PDF de una recomendación de siembra específica.
+    
+    Args:
+        prediccion_id: ID de la predicción/recomendación
+        service: Servicio de recomendaciones
+        
+    Returns:
+        PDF en formato StreamingResponse
+        
+    Raises:
+        HTTPException: Si la predicción no se encuentra o hay error al generar PDF
+    """
+    try:
+        from datetime import datetime, timezone
+        
+        # Obtener recomendación desde el historial usando el ID
+        historial = await service.get_history(limit=1000, offset=0)
+        
+        recommendation = None
+        item = None
+        for h_item in historial:
+            if str(h_item.id) == str(prediccion_id):
+                item = h_item
+                # Convertir SiembraHistoryItem a SiembraRecommendationResponse
+                recommendation = SiembraRecommendationResponse(
+                    lote_id=str(item.lote_id),
+                    tipo_recomendacion="siembra",
+                    recomendacion_principal=item.recomendacion_principal,
+                    alternativas=item.alternativas or [],
+                    nivel_confianza=item.nivel_confianza or 0.0,
+                    costos_estimados={},
+                    fecha_generacion=item.fecha_creacion or datetime.now(timezone.utc),
+                    cultivo=item.cultivo or "desconocido",
+                    datos_entrada=item.datos_entrada or {},
+                )
+                break
+        
+        if not recommendation or not item:
+            logger.warning(
+                "Predicción no encontrada para PDF",
+                extra={"prediccion_id": str(prediccion_id)}
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recomendación no encontrada",
+            )
+        
+        # Información del lote
+        lote_info = {
+            "nombre": f"Lote {str(item.lote_id)[:8]}",
+            "campana": item.campana or recommendation.datos_entrada.get("campana", "—"),
+        }
+        
+        # Generar PDF
+        pdf_bytes = pdf_service.generate_recommendation_pdf(
+            recommendation=recommendation,
+            lote_info=lote_info,
+        )
+        
+        logger.info(
+            "PDF descargado exitosamente",
+            extra={
+                "prediccion_id": str(prediccion_id),
+                "lote_id": recommendation.lote_id,
+            }
+        )
+        
+        # Retornar PDF como descarga (StreamingResponse permite enviar binarios sin buffer completo).
+        return StreamingResponse(
+            iter([pdf_bytes]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=recomendacion_{prediccion_id}_{recommendation.cultivo}.pdf"
+            },
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Error inesperado al generar PDF de recomendación",
+            extra={"prediccion_id": str(prediccion_id)}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo generar el PDF de la recomendación",
+        ) from exc

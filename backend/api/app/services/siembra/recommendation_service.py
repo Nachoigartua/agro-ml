@@ -174,8 +174,9 @@ class SiembraRecommendationService:
             datos_entrada=request.model_dump(mode="json"),
         )
 
-        # 10. Persistir recomendación
-        await self._persist_recommendation(request, response)
+        # 10. Persistir recomendación y devolver su ID para poder pedir el PDF luego
+        prediccion_id = await self._persist_recommendation(request, response)
+        response.prediccion_id = prediccion_id
 
         logger.info(
             "Recomendación de siembra generada exitosamente",
@@ -281,12 +282,15 @@ class SiembraRecommendationService:
         self,
         request: SiembraRequest,
         response: SiembraRecommendationResponse,
-    ) -> None:
+    ) -> str:
         """Persiste la recomendación generada.
         
         Args:
             request: Request original
             response: Respuesta generada
+            
+        Returns:
+            El ID de la predicción guardada
             
         Raises:
             RuntimeError: Si no hay repositorio configurado
@@ -312,7 +316,7 @@ class SiembraRecommendationService:
                 )
 
         # Guardar en base de datos
-        await self._persistence_context.predicciones.save(
+        prediccion = await self._persistence_context.predicciones.save(
             lote_id=request.lote_id,
             cliente_id=request.cliente_id,
             tipo_prediccion=response.tipo_recomendacion,
@@ -325,6 +329,8 @@ class SiembraRecommendationService:
             fecha_validez_desde=fecha_validez_desde,
             fecha_validez_hasta=fecha_validez_hasta,
         )
+        
+        return str(prediccion.id)
 
     # Nota: Se eliminó el cálculo y exposición de 'factores_considerados'.
 

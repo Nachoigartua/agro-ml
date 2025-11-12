@@ -1,8 +1,9 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
+import { debounceTime, finalize } from 'rxjs/operators';
 import { ApiService } from '@core/services/api.service';
+import { PdfDownloadService } from '@core/services/pdf-download.service';
 import {
   SiembraHistoryFilters,
   SiembraHistoryItem,
@@ -31,6 +32,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   totalHistory = 0;
   historyItems: SiembraHistoryItem[] = [];
+  
+  downloadingPdfId: string | null = null;
 
   private allHistoryItems: SiembraHistoryItem[] = [];
   private filteredHistoryItems: SiembraHistoryItem[] = [];
@@ -42,7 +45,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly apiService: ApiService,
-    private readonly formBuilder: FormBuilder
+    private readonly formBuilder: FormBuilder,
+    private readonly pdfDownloadService: PdfDownloadService
   ) {
     this.serverFiltersForm = this.formBuilder.group({
       lote_id: [''],
@@ -339,5 +343,41 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private deriveLoteLabel(loteId: string): string {
     return this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
+  }
+
+  /**
+   * Descarga el PDF de una recomendación específica
+   * @param item Elemento del historial
+   */
+  downloadRecommendationPdf(item: SiembraHistoryItem): void {
+    if (!item.id) {
+      console.warn('ID de recomendación no disponible');
+      return;
+    }
+
+    this.downloadingPdfId = item.id;
+
+    this.pdfDownloadService
+      .downloadRecommendationPdf(item.id, item.cultivo)
+      .pipe(finalize(() => (this.downloadingPdfId = null)))
+      .subscribe({
+        next: (blob: Blob) => {
+          const cultivo = item.cultivo || 'desconocido';
+          const filename = `recomendacion_${cultivo}_${new Date().getTime()}.pdf`;
+          this.pdfDownloadService.triggerDownload(blob, filename);
+        },
+        error: (err: any) => {
+          console.error('Error al descargar PDF:', err);
+          alert('No se pudo descargar el PDF. Por favor, intenta nuevamente.');
+        }
+      });
+  }
+
+  /**
+   * Verifica si se está descargando un PDF específico
+   * @param id ID del elemento
+   */
+  isDownloadingPdf(id: string): boolean {
+    return this.downloadingPdfId === id;
   }
 }
