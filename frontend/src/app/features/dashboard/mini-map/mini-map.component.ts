@@ -39,16 +39,27 @@ export class MiniMapComponent implements AfterViewInit, OnDestroy {
 
   private initMap(): void {
     const argentinaCenter: L.LatLngExpression = [-38.4161, -63.6167];
+    // Limitar pan y evitar zonas grises fuera de los límites definidos
+    const argentinaBounds = L.latLngBounds(
+      L.latLng(-56, -75), // sudoeste (margen alrededor de AR)
+      L.latLng(-20, -50)  // nordeste
+    );
+
     this.map = L.map('mini-map-container', {
       center: argentinaCenter,
       zoom: 4,
+      minZoom: 3,
       zoomControl: true,
       attributionControl: true,
+      maxBounds: argentinaBounds,
+      maxBoundsViscosity: 1.0, // bloquea el arrastre fuera de bounds
+      worldCopyJump: false,
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      noWrap: true, // evita la repetición infinita del mundo
+      attribution: '&copy; OpenStreetMap contributors',
     }).addTo(this.map);
   }
 
