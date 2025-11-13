@@ -1,4 +1,4 @@
-﻿FROM node:18
+FROM node:18
 
 WORKDIR /app
 
@@ -7,5 +7,9 @@ RUN npm install
 
 COPY . .
 
+COPY docker-entrypoint.sh /usr/local/bin/frontend-entrypoint.sh
+RUN chmod +x /usr/local/bin/frontend-entrypoint.sh
+
 EXPOSE 4200
-CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--port", "4200"]
+ENTRYPOINT ["frontend-entrypoint.sh"]
+CMD ["npm", "run", "start:docker"]
