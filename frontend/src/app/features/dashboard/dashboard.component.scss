@@ -239,20 +239,28 @@
       white-space: nowrap;
     }
   }
+
+  th:last-child,
+  td:last-child {
+    width: 110px;
+    text-align: center;
+  }
 }
 
 .window-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
+  width: 100%;
   white-space: nowrap;
 }
 
 .actions-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  white-space: nowrap;
+  width: 100%;
 }
 
 .btn-icon {

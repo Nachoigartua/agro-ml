@@ -99,24 +99,28 @@
                 </ng-container>
               </td>
               <td>{{ formatRecommendationDate(item.recomendacion_principal.fecha_optima) }}</td>
-              <td class="window-cell">
-                <ng-container *ngIf="item.recomendacion_principal.ventana.length === 2; else dash">
-                  <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[0]) }}</span>
-                  <span class="range-separator">→</span>
-                  <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
-                </ng-container>
+              <td>
+                <div class="window-cell">
+                  <ng-container *ngIf="item.recomendacion_principal.ventana.length === 2; else dash">
+                    <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[0]) }}</span>
+                    <span class="range-separator">→</span>
+                    <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
+                  </ng-container>
+                </div>
               </td>
-              <td class="actions-cell">
-                <button 
-                  type="button" 
-                  class="btn btn-icon" 
-                  (click)="downloadRecommendationPdf(item)"
-                  [disabled]="isDownloadingPdf(item.id)"
-                  title="Descargar PDF de esta recomendación"
-                >
-                  <span *ngIf="!isDownloadingPdf(item.id)">📥</span>
-                  <span *ngIf="isDownloadingPdf(item.id)" class="loading"></span>
-                </button>
+              <td>
+                <div class="actions-cell">
+                  <button 
+                    type="button" 
+                    class="btn btn-icon" 
+                    (click)="downloadRecommendationPdf(item)"
+                    [disabled]="isDownloadingPdf(item.id)"
+                    title="Descargar PDF de esta recomendación"
+                  >
+                    <span *ngIf="!isDownloadingPdf(item.id)">📥</span>
+                    <span *ngIf="isDownloadingPdf(item.id)" class="loading"></span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
