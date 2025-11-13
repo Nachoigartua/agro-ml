@@ -241,6 +241,56 @@ class SiembraRecommendationService:
 
         return [self._map_prediccion_to_history_item(pred) for pred in registros]
 
+    async def get_recommendation_for_pdf(
+        self,
+        prediccion_id: str,
+    ) -> tuple[Optional[SiembraRecommendationResponse], Optional[dict]]:
+        """Recupera una recomendación lista para PDF por ID, sin recorrer el historial.
+
+        Args:
+            prediccion_id: ID de la predicción a recuperar
+
+        Returns:
+            Tupla con (SiembraRecommendationResponse, lote_info) o (None, None) si no existe.
+
+        Raises:
+            RuntimeError: Si no hay repositorio configurado
+        """
+        if self._persistence_context.predicciones is None:
+            raise RuntimeError(
+                "El contexto de persistencia no cuenta con repositorio de predicciones."
+            )
+
+        entidad = await self._persistence_context.predicciones.get_by_id(prediccion_id)
+        if entidad is None:
+            return None, None
+
+        # Construir respuesta equivalente a la usada en el PDF
+        principal_data = entidad.recomendacion_principal or {}
+        recomendacion_principal = RecomendacionPrincipalSiembra(**principal_data)
+        alternativas_raw = entidad.alternativas or []
+        alternativas = [dict(alt) if isinstance(alt, dict) else alt for alt in alternativas_raw]
+        datos_entrada = dict(entidad.datos_entrada or {})
+
+        recommendation = SiembraRecommendationResponse(
+            lote_id=str(entidad.lote_id),
+            tipo_recomendacion="siembra",
+            recomendacion_principal=recomendacion_principal,
+            alternativas=alternativas,
+            nivel_confianza=float(entidad.nivel_confianza or 0.0),
+            costos_estimados={},
+            fecha_generacion=entidad.fecha_creacion or datetime.now(timezone.utc),
+            cultivo=entidad.cultivo or "desconocido",
+            datos_entrada=datos_entrada,
+        )
+
+        lote_info = {
+            "nombre": f"Lote {str(entidad.lote_id)[:8]}",
+            "campana": datos_entrada.get("campana", "—"),
+        }
+
+        return recommendation, lote_info
+
     async def _ensure_components_ready(self) -> None:
         """Asegura que todos los componentes estén listos para uso."""
         # Cargar modelo si no está cargado

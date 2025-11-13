@@ -94,3 +94,18 @@ class PrediccionRepository:
 
         result = await self._session.execute(query)
         return list(result.scalars().all())
+
+    async def get_by_id(self, prediccion_id: Union[str, UUID]) -> Optional[Prediccion]:
+        """Obtiene una predicción por su ID.
+
+        Args:
+            prediccion_id: Identificador de la predicción
+
+        Returns:
+            La entidad `Prediccion` si existe, de lo contrario `None`.
+        """
+        query = sa.select(Prediccion).where(
+            Prediccion.id == coerce_uuid(prediccion_id, field="id")
+        )
+        result = await self._session.execute(query)
+        return result.scalars().first()

@@ -141,31 +141,10 @@ async def descargar_recomendacion_pdf(
         HTTPException: Si la predicción no se encuentra o hay error al generar PDF
     """
     try:
-        from datetime import datetime, timezone
-        
-        # Obtener recomendación desde el historial usando el ID
-        historial = await service.get_history(limit=1000, offset=0)
-        
-        recommendation = None
-        item = None
-        for h_item in historial:
-            if str(h_item.id) == str(prediccion_id):
-                item = h_item
-                # Convertir SiembraHistoryItem a SiembraRecommendationResponse
-                recommendation = SiembraRecommendationResponse(
-                    lote_id=str(item.lote_id),
-                    tipo_recomendacion="siembra",
-                    recomendacion_principal=item.recomendacion_principal,
-                    alternativas=item.alternativas or [],
-                    nivel_confianza=item.nivel_confianza or 0.0,
-                    costos_estimados={},
-                    fecha_generacion=item.fecha_creacion or datetime.now(timezone.utc),
-                    cultivo=item.cultivo or "desconocido",
-                    datos_entrada=item.datos_entrada or {},
-                )
-                break
-        
-        if not recommendation or not item:
+        # Obtener recomendación y datos de lote directamente desde el servicio (sin bucles)
+        recommendation, lote_info = await service.get_recommendation_for_pdf(str(prediccion_id))
+
+        if not recommendation or not lote_info:
             logger.warning(
                 "Predicción no encontrada para PDF",
                 extra={"prediccion_id": str(prediccion_id)}
@@ -174,12 +153,6 @@ async def descargar_recomendacion_pdf(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Recomendación no encontrada",
             )
-        
-        # Información del lote
-        lote_info = {
-            "nombre": f"Lote {str(item.lote_id)[:8]}",
-            "campana": item.campana or recommendation.datos_entrada.get("campana", "—"),
-        }
         
         # Generar PDF
         pdf_bytes = pdf_service.generate_recommendation_pdf(
