@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
@@ -13,7 +13,6 @@ import {
   LOTES_DISPONIBLES,
   LoteOption,
 } from '@shared/constants/farm.constants';
-import { MiniMapComponent } from './mini-map/mini-map.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -21,7 +20,6 @@ import { MiniMapComponent } from './mini-map/mini-map.component';
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  @ViewChild(MiniMapComponent) miniMap?: MiniMapComponent;
   readonly serverFiltersForm: FormGroup;
   readonly localSearchControl = new FormControl<string>('', { nonNullable: true });
 
@@ -41,7 +39,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly subscriptions = new Subscription();
 
   private readonly loteLabelMap = new Map<string, string>();
-  private readonly selectedLotes = new Set<string>();
 
   constructor(
     private readonly apiService: ApiService,
@@ -168,20 +165,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private setupFilterSubscriptions(): void {
     const filterChangesSub = this.serverFiltersForm.valueChanges
       .pipe(debounceTime(300))
-      .subscribe((raw) => {
-        // Sincroniza selección de UI -> mapa
-        const rawLote = (raw as any)?.lote_id as string | string[] | undefined;
-        const ids = Array.isArray(rawLote)
-          ? rawLote.filter((v) => !!v)
-          : (rawLote ? [rawLote] : []);
-        if (this.miniMap) {
-          this.miniMap.setSelection(ids);
-        }
-        this.selectedLotes.clear();
-        ids.forEach((id) => this.selectedLotes.add(id));
-        this.applyLocalFilters();
-
-        // Decide si hace request al backend
+      .subscribe(() => {
         const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
         const serialized = JSON.stringify(filters);
         if (serialized !== this.lastAppliedFilters) {
@@ -203,16 +187,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const normalized: SiembraHistoryFilters = {};
 
     Object.entries(values ?? {}).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        // Si múltiples lotes, no enviamos a backend. Si 1, lo enviamos como string
-        if (value.length === 1 && typeof value[0] === 'string' && value[0].trim().length > 0) {
-          (normalized as any)[key] = value[0].trim();
-        }
-        return;
-      }
-
       if (typeof value === 'string' && value.trim().length > 0) {
-        (normalized as any)[key] = value.trim();
+        normalized[key as keyof SiembraHistoryFilters] = value.trim();
       }
     });
 
@@ -283,13 +259,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       ? this.localSearchControl.value.trim().toLowerCase()
       : '';
 
-    const hasSelection = this.selectedLotes.size > 0;
-
-    const filtered = this.allHistoryItems.filter((item) => {
-      const matchesSearch = !searchTerm || this.matchesSearch(item, searchTerm);
-      const matchesSelection = !hasSelection || (item.lote_id && this.selectedLotes.has(item.lote_id));
-      return matchesSearch && matchesSelection;
-    });
+    const filtered = searchTerm
+      ? this.allHistoryItems.filter((item) => this.matchesSearch(item, searchTerm))
+      : [...this.allHistoryItems];
 
     this.filteredHistoryItems = [...filtered];
     this.historyItems = [...filtered];
@@ -367,53 +339,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private deriveLoteLabel(loteId: string): string {
     return this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
-  }
-
-  onSelectedLotesChange(ids: string[]): void {
-    this.selectedLotes.clear();
-    ids.forEach((id) => this.selectedLotes.add(id));
-    // Reflejar selección en el select (sin disparar requests)
-    const control = this.serverFiltersForm.get('lote_id');
-    if (control) {
-      // Dropdown simple: si hay 0 -> '', 1 -> id, >1 -> '' (mostrar 'Todos')
-      control.setValue(ids.length === 1 ? ids[0] : '', { emitEvent: false });
-    }
-
-    // Si 0 o 1 seleccionado, podemos pegar al backend; si >1, filtramos local
-    if (ids.length <= 1) {
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-        return;
-      }
-      this.applyLocalFilters();
-      return;
-    }
-
-    // >1 seleccionado: cargar todo el historial (sin lote_id) y luego filtrar localmente
-    this.loadDashboardData();
-  }
-
-  // Maneja cambios normales del dropdown; la lógica principal ya está en valueChanges del form.
-  onLoteDropdownChange(event: Event): void {
-    // No hacemos nada aquí; el valueChanges del form se encarga.
-  }
-
-  // Caso especial: si ya está en '' (Todos), seleccionar otra vez no dispara valueChanges.
-  // Detectamos el click y, si corresponde, limpiamos selección del mapa y filtros locales.
-  onLoteDropdownClick(event: Event): void {
-    const current = (event.target as HTMLSelectElement)?.value ?? '';
-    if (current === '' && this.selectedLotes.size > 0) {
-      this.miniMap?.clearSelection();
-      this.selectedLotes.clear();
-      this.applyLocalFilters();
-
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-      }
-    }
   }
 }

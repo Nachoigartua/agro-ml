@@ -1,44 +1,7 @@
 .dashboard {
-  display: grid;
-  grid-template-columns: 7fr 3fr; /* ~70% / 30% */
-  grid-auto-rows: min-content;
-  gap: 1.5rem;
-  align-items: start;
-}
-
-/* Secciones que ocupan el ancho completo arriba */
-.dashboard-header,
-.filters-panel {
-  grid-column: 1 / -1;
-}
-
-/* Wrapper de dos columnas para contenido + mapa */
-.content-columns {
-  grid-column: 1 / -1; /* ocupar ambas columnas del dashboard */
-  display: grid;
-  grid-template-columns: 7fr 3fr; /* 70/30 */
-  gap: 1.5rem;
-  align-items: start;
-}
-
-.content-columns .right-col {
-  position: sticky;
-  top: 1rem;
-}
-
-.content-columns .left-col {
-  min-width: 0; /* evita overflow horizontal de la tabla */
-}
-
-/* Dentro del wrapper, forzamos historial a la columna izquierda */
-.content-columns .panel,
-.content-columns .history-panel {
-  grid-column: 1;
-}
-
-.content-columns app-mini-map {
-  grid-column: 2;
-  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .dashboard-header {
@@ -322,27 +285,6 @@
 }
 
 @media (max-width: 768px) {
-  .dashboard {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-header,
-  .filters-panel {
-    grid-column: 1;
-  }
-
-  .content-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .content-columns .right-col,
-  .content-columns .left-col,
-  .content-columns .panel,
-  .content-columns .history-panel,
-  .content-columns app-mini-map {
-    grid-column: 1;
-  }
-
   .dashboard-header,
   .filters-panel,
   .history-panel,
