@@ -1,4 +1,4 @@
-FROM node:18
+﻿FROM node:18
 
 WORKDIR /app
 
@@ -8,4 +8,4 @@ RUN npm install
 COPY . .
 
 EXPOSE 4200
-CMD ["npm", "run", "start:docker"]
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--port", "4200"]
