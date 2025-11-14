@@ -361,11 +361,14 @@
     flex-wrap: wrap;
     gap: 0.35rem;
     margin-top: 0.5rem;
+    list-style: none;
+    padding: 0;
 
     li {
       padding: 0.35rem 0.8rem;
-      border-radius: 999px;
-      background: rgba(25, 118, 210, 0.12);
+      border-radius: 0;
+      background: #ffffff;
+      border: 1px solid rgba(220, 220, 220, 0.5);
       font-size: 0.8rem;
     }
   }
