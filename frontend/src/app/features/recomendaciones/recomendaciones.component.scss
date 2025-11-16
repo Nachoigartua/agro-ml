@@ -161,6 +161,16 @@
       box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.15);
     }
   }
+
+  .field-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .field-helper {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
 }
 
 .chip-group {
@@ -230,6 +240,25 @@
   min-height: 420px;
 }
 
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.result-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(220, 220, 220, 0.5);
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
 .loader {
   display: flex;
   flex-direction: column;
@@ -279,6 +308,10 @@
     margin: 0.5rem 0 0 0;
     color: var(--text-secondary);
   }
+
+  .pill {
+    margin-bottom: 0.5rem;
+  }
 }
 
 .result-grid {
@@ -303,6 +336,24 @@
   h3 {
     margin: 0;
     font-size: 1.1rem;
+  }
+
+  .result-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+
+    .pill {
+      width: fit-content;
+    }
+  }
+
+  .result-card-block {
+    margin-top: 1rem;
+  }
+
+  .alert-error {
+    margin: 0;
   }
 
   .main-window {

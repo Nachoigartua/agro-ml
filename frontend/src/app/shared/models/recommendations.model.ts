@@ -1,5 +1,5 @@
-export interface SiembraRecommendationRequest {
-  lote_id: string;
+export interface BulkSiembraRecommendationRequest {
+  lote_ids: string[];
   cultivo: string;
   campana: string;
   fecha_consulta: string;
@@ -44,6 +44,18 @@ export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unkn
 export interface SiembraRecommendationResponse extends RecomendacionResponse<RecommendationWindow, RecommendationAlternative> {
   tipo_recomendacion: 'siembra';
   cultivo: string;
+}
+
+export interface BulkSiembraRecommendationItem {
+  lote_id: string;
+  success: boolean;
+  response?: SiembraRecommendationResponse;
+  error?: string;
+}
+
+export interface BulkSiembraRecommendationResponse {
+  total: number;
+  resultados: BulkSiembraRecommendationItem[];
 }
 
 export interface SiembraHistoryItem {

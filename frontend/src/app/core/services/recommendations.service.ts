@@ -2,7 +2,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '@environments/environment';
-import { SiembraRecommendationRequest, SiembraRecommendationResponse } from '@shared/models/recommendations.model';
+import {
+  BulkSiembraRecommendationRequest,
+  BulkSiembraRecommendationResponse
+} from '@shared/models/recommendations.model';
 
 @Injectable({
   providedIn: 'root'
@@ -13,8 +16,8 @@ export class RecommendationsService {
   constructor(private readonly http: HttpClient) {}
 
   generateSiembraRecommendation(
-    payload: SiembraRecommendationRequest
-  ): Observable<SiembraRecommendationResponse> {
-    return this.http.post<SiembraRecommendationResponse>(`${this.baseUrl}/siembra`, payload);
+    payload: BulkSiembraRecommendationRequest
+  ): Observable<BulkSiembraRecommendationResponse> {
+    return this.http.post<BulkSiembraRecommendationResponse>(`${this.baseUrl}/siembra`, payload);
   }
 }

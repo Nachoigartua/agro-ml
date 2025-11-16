@@ -4,9 +4,11 @@ import { finalize } from 'rxjs/operators';
 import { RecommendationsService } from '@core/services/recommendations.service';
 import { CAMPANAS_DISPONIBLES, CULTIVOS_DISPONIBLES, LOTES_DISPONIBLES } from '@shared/constants/farm.constants';
 import {
+  BulkSiembraRecommendationRequest,
+  BulkSiembraRecommendationResponse,
+  BulkSiembraRecommendationItem,
   RecommendationAlternative,
   RecommendationWindow,
-  SiembraRecommendationRequest,
   SiembraRecommendationResponse
 } from '@shared/models/recommendations.model';
 
@@ -20,7 +22,7 @@ export class RecomendacionesComponent implements OnInit {
 
   recommendationForm: FormGroup;
   isLoading = false;
-  result: SiembraRecommendationResponse | null = null;
+  bulkResult: BulkSiembraRecommendationResponse | null = null;
   error: string | null = null;
 
   // Debe coincidir con los permitidos por el backend
@@ -47,17 +49,23 @@ export class RecomendacionesComponent implements OnInit {
       return;
     }
 
+    const selectedLotes: string[] = this.recommendationForm.value.loteIds ?? [];
+    if (!selectedLotes.length) {
+      this.recommendationForm.get('loteIds')?.setErrors({ required: true });
+      return;
+    }
+
     const payload = this.buildRequestPayload();
     this.isLoading = true;
     this.error = null;
-    this.result = null;
+    this.bulkResult = null;
 
     this.recommendationsService
       .generateSiembraRecommendation(payload)
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
         next: (response) => {
-          this.result = response;
+          this.bulkResult = response;
         },
         error: (err) => {
           this.error = err?.message ?? 'No se pudo generar la recomendacion';
@@ -89,7 +97,10 @@ export class RecomendacionesComponent implements OnInit {
     return 'Baja';
   }
 
-  formatVentana(ventana: RecommendationWindow['ventana']): string {
+  formatVentana(ventana?: RecommendationWindow['ventana']): string {
+    if (!ventana || ventana.length < 2) {
+      return '-';
+    }
     const [inicio, fin] = ventana;
     return `${this.formatDate(inicio)} - ${this.formatDate(fin)}`;
   }
@@ -120,18 +131,18 @@ export class RecomendacionesComponent implements OnInit {
 
   private createForm(): FormGroup {
     return this.fb.group({
-      loteId: [this.lotes[0].value, Validators.required],
+      loteIds: [[this.lotes[0].value], [Validators.required, Validators.minLength(1)]],
       cultivo: [this.cultivos[0], Validators.required],
       campana: [this.defaultCampana, Validators.required]
     });
   }
 
-  private buildRequestPayload(): SiembraRecommendationRequest {
-    const { loteId, cultivo, campana } = this.recommendationForm.value;
+  private buildRequestPayload(): BulkSiembraRecommendationRequest {
+    const { loteIds, cultivo, campana } = this.recommendationForm.value;
     const fecha = new Date();
 
     return {
-      lote_id: loteId,
+      lote_ids: loteIds,
       cultivo,
       campana,
       fecha_consulta: fecha.toISOString(),
@@ -166,15 +177,26 @@ export class RecomendacionesComponent implements OnInit {
     return lote ? lote.label : loteId;
   }
 
-  getDatosEntradaLoteId(): string {
-    return this.result?.datos_entrada?.['lote_id'] as string || '';
+  get successfulResults(): BulkSiembraRecommendationItem[] {
+    return this.bulkResult?.resultados.filter((item) => item.success && !!item.response) ?? [];
   }
 
-  getDatosEntradaCampana(): string {
-    return this.result?.datos_entrada?.['campana'] as string || '';
+  get failedResults(): BulkSiembraRecommendationItem[] {
+    return this.bulkResult?.resultados.filter((item) => !item.success) ?? [];
   }
 
-  getDatosEntradaFechaConsulta(): string {
-    return this.result?.datos_entrada?.['fecha_consulta'] as string || '';
+  get hasPartialFailures(): boolean {
+    return this.failedResults.length > 0;
+  }
+
+  getDatosEntradaValue(response: SiembraRecommendationResponse | undefined, key: string): string {
+    if (!response?.datos_entrada) {
+      return '';
+    }
+    const value = response.datos_entrada[key];
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value);
   }
 }

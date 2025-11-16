@@ -1,6 +1,7 @@
 """Servicio orquestador de recomendaciones de siembra."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
@@ -12,6 +13,9 @@ from ...db.persistence import PersistenceContext
 from ...db.models.predicciones import Prediccion
 from ...dto.siembra import (
     ALLOWED_CULTIVOS,
+    BulkSiembraRecommendationItem,
+    BulkSiembraRequest,
+    BulkSiembraResponse,
     RecomendacionPrincipalSiembra,
     SiembraHistoryItem,
     SiembraRecommendationResponse,
@@ -189,6 +193,49 @@ class SiembraRecommendationService:
         )
 
         return response
+
+    async def bulk_generate_recommendation(
+        self,
+        request: BulkSiembraRequest,
+    ) -> BulkSiembraResponse:
+        """Genera recomendaciones de siembra para múltiples lotes en paralelo."""
+        siembra_requests = [
+            SiembraRequest(
+                lote_id=lote_id,
+                cultivo=request.cultivo,
+                campana=request.campana,
+                fecha_consulta=request.fecha_consulta,
+                cliente_id=request.cliente_id,
+            )
+            for lote_id in request.lote_ids
+        ]
+
+        async def _run(req: SiembraRequest) -> BulkSiembraRecommendationItem:
+            try:
+                response = await self.generate_recommendation(req)
+                return BulkSiembraRecommendationItem(
+                    lote_id=req.lote_id,
+                    success=True,
+                    response=response,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.exception(
+                    "Error generando recomendación de siembra",
+                    extra={"lote_id": req.lote_id},
+                )
+                return BulkSiembraRecommendationItem(
+                    lote_id=req.lote_id,
+                    success=False,
+                    error=str(exc),
+                )
+
+        tareas = [_run(req) for req in siembra_requests]
+        resultados = await asyncio.gather(*tareas)
+
+        return BulkSiembraResponse(
+            total=len(resultados),
+            resultados=list(resultados),
+        )
 
     async def get_history(
         self,
