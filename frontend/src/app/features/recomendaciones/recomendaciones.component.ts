@@ -174,7 +174,8 @@ export class RecomendacionesComponent implements OnInit {
 
   getLoteLabel(loteId: string): string {
     const lote = this.lotes.find(l => l.value === loteId);
-    return lote ? lote.label : loteId;
+    const display = lote ? lote.label : loteId;
+    return display ? `Lote ${display}` : 'Lote';
   }
 
   get successfulResults(): BulkSiembraRecommendationItem[] {

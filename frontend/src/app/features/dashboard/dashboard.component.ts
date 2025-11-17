@@ -352,7 +352,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return '—';
     }
 
-    return this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
+    const display = this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
+    return display === '—' ? display : `Lote ${display}`;
   }
 
   private bootstrapStaticOptions(): void {

@@ -320,7 +320,7 @@
   margin-top: 1.5rem;
 
   @media (min-width: 992px) {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
 
@@ -407,18 +407,26 @@
     font-weight: 600;
   }
 
-  .tag-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.5rem;
+  .risk-list {
+    margin-top: 0.75rem;
+  }
 
-    li {
-      padding: 0.35rem 0.8rem;
-      border-radius: 999px;
-      background: rgba(25, 118, 210, 0.12);
-      font-size: 0.8rem;
-    }
+  .risk-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .risk-badge {
+    display: block;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(244, 67, 54, 0.08);
+    border: 1px solid rgba(244, 67, 54, 0.2);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    line-height: 1.4;
   }
 
   .alternative-grid {

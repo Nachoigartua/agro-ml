@@ -105,8 +105,8 @@
             <ng-container *ngIf="item.success && item.response as response; else loteError">
               <header class="result-header">
                 <div>
-                  <span class="pill">Lote {{ getLoteLabel(item.lote_id) }}</span>
-                  <h3>Plan recomendado</h3>
+                  <span class="pill">{{ getLoteLabel(item.lote_id) }}</span>
+                  <h3>Recomendaciones de siembra</h3>
                   <p class="result-subtitle">
                     Cultivo: {{ response.cultivo | titlecase }} |
                     Campaña: {{ getDatosEntradaValue(response, 'campana') }}
@@ -125,17 +125,19 @@
                       Confianza:
                       {{ response.recomendacion_principal.confianza * 100 | number: '1.0-0' }}%
                     </span>
-                    <div *ngIf="response.recomendacion_principal.riesgos?.length">
+                    <div *ngIf="response.recomendacion_principal.riesgos?.length" class="risk-list">
                       <span class="range-label">Riesgos</span>
-                      <ul class="tag-list">
-                        <li *ngFor="let riesgo of response.recomendacion_principal.riesgos">{{ riesgo }}</li>
-                      </ul>
+                      <div class="risk-badges">
+                        <span class="risk-badge" *ngFor="let riesgo of response.recomendacion_principal.riesgos">
+                          {{ riesgo }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </article>
 
                 <article class="result-card" *ngIf="response.alternativas?.length">
-                  <h4>Alternativas</h4>
+                  <h4>Recomendación alternativa</h4>
                   <div class="alternative-grid">
                     <div class="alternative-card" *ngFor="let alt of response.alternativas; trackBy: trackByAlternative">
                       <div class="scenario-badge" *ngIf="alt.escenario_climatico">
