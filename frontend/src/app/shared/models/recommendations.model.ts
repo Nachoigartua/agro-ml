@@ -81,7 +81,7 @@ export interface SiembraHistoryResponse {
 
 export interface SiembraHistoryFilters {
   cliente_id?: string;
-  lote_id?: string;
+  lote_id?: string | string[];
   cultivo?: string;
   campana?: string;
 }

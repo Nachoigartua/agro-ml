@@ -139,3 +139,11 @@ class MockMainSystemAPIClient:
             )
         
         return lote_data
+
+    async def list_lotes(self) -> Dict[str, Dict]:
+        """Lista todos los lotes disponibles en el mock.
+
+        Returns:
+            Diccionario de lotes indexado por `lote_id`.
+        """
+        return LOTES_DB
