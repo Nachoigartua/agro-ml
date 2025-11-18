@@ -161,6 +161,16 @@
       box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.15);
     }
   }
+
+  .field-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .field-helper {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
 }
 
 .chip-group {
@@ -197,8 +207,10 @@
 }
 
 .btn-primary {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.85rem 1.6rem;
   border-radius: 12px;
@@ -218,6 +230,7 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+
 }
 
 .btn-ghost {
@@ -228,6 +241,25 @@
 
 .panel-result {
   min-height: 420px;
+}
+
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.result-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(220, 220, 220, 0.5);
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
 }
 
 .loader {
@@ -279,6 +311,10 @@
     margin: 0.5rem 0 0 0;
     color: var(--text-secondary);
   }
+
+  .pill {
+    margin-bottom: 0.5rem;
+  }
 }
 
 .result-grid {
@@ -287,7 +323,7 @@
   margin-top: 1.5rem;
 
   @media (min-width: 992px) {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
 
@@ -303,6 +339,24 @@
   h3 {
     margin: 0;
     font-size: 1.1rem;
+  }
+
+  .result-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+
+    .pill {
+      width: fit-content;
+    }
+  }
+
+  .result-card-block {
+    margin-top: 1rem;
+  }
+
+  .alert-error {
+    margin: 0;
   }
 
   .main-window {
@@ -356,18 +410,26 @@
     font-weight: 600;
   }
 
-  .tag-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.5rem;
+  .risk-list {
+    margin-top: 0.75rem;
+  }
 
-    li {
-      padding: 0.35rem 0.8rem;
-      border-radius: 999px;
-      background: rgba(25, 118, 210, 0.12);
-      font-size: 0.8rem;
-    }
+  .risk-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .risk-badge {
+    display: block;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(244, 67, 54, 0.08);
+    border: 1px solid rgba(244, 67, 54, 0.2);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    line-height: 1.4;
   }
 
   .alternative-grid {

@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..core.logging import get_logger
 from ..dependencies import get_siembra_service
 from ..dto.siembra import (
+    BulkSiembraRequest,
+    BulkSiembraResponse,
     SiembraHistoryResponse,
-    SiembraRecommendationResponse,
-    SiembraRequest,
 )
 from ..services.siembra.recommendation_service import SiembraRecommendationService
 from ..exceptions import CampaignNotFoundError
@@ -23,47 +23,51 @@ router = APIRouter(prefix="/api/v1/recomendaciones", tags=["recomendaciones"])
 
 @router.post(
     "/siembra",
-    response_model=SiembraRecommendationResponse,
+    response_model=BulkSiembraResponse,
     status_code=status.HTTP_200_OK,
 )
 async def obtener_recomendacion_siembra(
-    payload: SiembraRequest,
+    payload: BulkSiembraRequest,
     service: SiembraRecommendationService = Depends(get_siembra_service),
-) -> SiembraRecommendationResponse:
-    """Genera una recomendación de siembra."""
+) -> BulkSiembraResponse:
+    """Genera recomendaciones de siembra para uno o varios lotes."""
     logger.info(
         "Procesando recomendación de siembra",
-        extra={"lote_id": str(payload.lote_id), "cultivo": payload.cultivo}
+        extra={
+            "lotes": payload.lote_ids,
+            "cultivo": payload.cultivo,
+            "total_lotes": len(payload.lote_ids),
+        }
     )
 
     try:
-        response = await service.generate_recommendation(payload)
+        response = await service.bulk_generate_recommendation(payload)
         return response
-        
+
     except CampaignNotFoundError as exc:
         logger.warning(
             "Campaña requerida o inválida en recomendación de siembra",
-            extra={"error": str(exc), "lote_id": payload.lote_id}
+            extra={"error": str(exc), "lotes": payload.lote_ids},
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-        
+
     except ValueError as exc:
         logger.warning(
             "Error de validación en recomendación de siembra",
-            extra={"error": str(exc), "lote_id": payload.lote_id}
+            extra={"error": str(exc), "lotes": payload.lote_ids},
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error de validación: {exc}",
         ) from exc
-        
+
     except Exception as exc:
         logger.exception(
             "Error inesperado al generar recomendación de siembra",
-            extra={"lote_id": payload.lote_id}
+            extra={"lotes": payload.lote_ids},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

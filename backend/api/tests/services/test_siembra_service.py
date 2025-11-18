@@ -23,6 +23,12 @@ class _DummyPersistenceContext:
         self.predicciones = _DummyPrediccionRepository()
         self.modelos = None
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
 
 class _FakeMainSystemClient:
     async def get_lote_data(self, lote_id):
@@ -65,7 +71,7 @@ def test_generate_recommendation_returns_expected_shape():
     )
     service = SiembraRecommendationService(
         main_system_client=_FakeMainSystemClient(),
-        persistence_context=_DummyPersistenceContext(),
+        persistence_context_factory=_DummyPersistenceContext,
     )
     _prime_service_with_stub_model(service)
 
@@ -98,7 +104,7 @@ def test_generate_recommendation_propagates_503_from_client():
     )
     service = SiembraRecommendationService(
         main_system_client=_FailingClient(),
-        persistence_context=_DummyPersistenceContext(),
+        persistence_context_factory=_DummyPersistenceContext,
     )
     _prime_service_with_stub_model(service)
 
@@ -119,7 +125,7 @@ def test_service_returns_expected_shape():
     )
     service = SiembraRecommendationService(
         main_system_client=_FakeMainSystemClient(),
-        persistence_context=_DummyPersistenceContext(),
+        persistence_context_factory=_DummyPersistenceContext,
     )
     _prime_service_with_stub_model(service)
 
@@ -144,7 +150,7 @@ def test_service_handles_other_lote():
     )
     service = SiembraRecommendationService(
         main_system_client=_FakeMainSystemClient(),
-        persistence_context=_DummyPersistenceContext(),
+        persistence_context_factory=_DummyPersistenceContext,
     )
     _prime_service_with_stub_model(service)
 
@@ -164,7 +170,7 @@ def test_service_varies_with_cultivo_for_same_lote():
     )
     service = SiembraRecommendationService(
         main_system_client=_FakeMainSystemClient(),
-        persistence_context=_DummyPersistenceContext(),
+        persistence_context_factory=_DummyPersistenceContext,
     )
     _prime_service_with_stub_model(service)
 

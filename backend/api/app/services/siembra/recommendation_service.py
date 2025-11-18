@@ -1,8 +1,9 @@
 """Servicio orquestador de recomendaciones de siembra."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import pandas as pd
 
@@ -12,6 +13,9 @@ from ...db.persistence import PersistenceContext
 from ...db.models.predicciones import Prediccion
 from ...dto.siembra import (
     ALLOWED_CULTIVOS,
+    BulkSiembraRecommendationItem,
+    BulkSiembraRequest,
+    BulkSiembraResponse,
     RecomendacionPrincipalSiembra,
     SiembraHistoryItem,
     SiembraRecommendationResponse,
@@ -43,7 +47,7 @@ class SiembraRecommendationService:
         self,
         main_system_client: MainSystemAPIClient,
         *,
-        persistence_context: PersistenceContext,
+        persistence_context_factory: Callable[[], PersistenceContext] = PersistenceContext,
         model_name: str = "modelo_siembra",
         model_type: str = "random_forest_regressor",
         risk_analyzer: Optional[SiembraRiskAnalyzer] = None,  # ← NUEVO
@@ -52,17 +56,17 @@ class SiembraRecommendationService:
         
         Args:
             main_system_client: Cliente para obtener datos del sistema principal
-            persistence_context: Contexto de persistencia
+            persistence_context_factory: Fábrica para obtener contextos de persistencia
             model_name: Nombre del modelo a usar
             model_type: Tipo de modelo
             risk_analyzer: Analizador de riesgos climáticos (opcional)
         """
         self.main_system_client = main_system_client
-        self._persistence_context = persistence_context
+        self._persistence_context_factory = persistence_context_factory
         
         # Componentes especializados
         self._model_loader = ModelLoader(
-            persistence_context=persistence_context,
+            persistence_context_factory=persistence_context_factory,
             model_name=model_name,
             model_type=model_type,
         )
@@ -190,6 +194,49 @@ class SiembraRecommendationService:
 
         return response
 
+    async def bulk_generate_recommendation(
+        self,
+        request: BulkSiembraRequest,
+    ) -> BulkSiembraResponse:
+        """Genera recomendaciones de siembra para múltiples lotes en paralelo."""
+        siembra_requests = [
+            SiembraRequest(
+                lote_id=lote_id,
+                cultivo=request.cultivo,
+                campana=request.campana,
+                fecha_consulta=request.fecha_consulta,
+                cliente_id=request.cliente_id,
+            )
+            for lote_id in request.lote_ids
+        ]
+
+        async def _run(req: SiembraRequest) -> BulkSiembraRecommendationItem:
+            try:
+                response = await self.generate_recommendation(req)
+                return BulkSiembraRecommendationItem(
+                    lote_id=req.lote_id,
+                    success=True,
+                    response=response,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.exception(
+                    "Error generando recomendación de siembra",
+                    extra={"lote_id": req.lote_id},
+                )
+                return BulkSiembraRecommendationItem(
+                    lote_id=req.lote_id,
+                    success=False,
+                    error=str(exc),
+                )
+
+        tareas = [_run(req) for req in siembra_requests]
+        resultados = await asyncio.gather(*tareas)
+
+        return BulkSiembraResponse(
+            total=len(resultados),
+            resultados=list(resultados),
+        )
+
     async def get_history(
         self,
         *,
@@ -217,26 +264,27 @@ class SiembraRecommendationService:
             RuntimeError: Si no hay repositorio configurado
             ValueError: Si cultivo es inválido
         """
-        if self._persistence_context.predicciones is None:
-            raise RuntimeError(
-                "El contexto de persistencia no cuenta con repositorio de predicciones."
+        async with self._persistence_context_factory() as persistence:
+            if persistence.predicciones is None:
+                raise RuntimeError(
+                    "El contexto de persistencia no cuenta con repositorio de predicciones."
+                )
+
+            # Validar y normalizar cultivo si se proporciona
+            normalised_cultivo: Optional[str] = None
+            if cultivo is not None:
+                normalised_cultivo = validate_cultivo(cultivo, ALLOWED_CULTIVOS)
+
+            # Obtener registros
+            registros = await persistence.predicciones.list_by_filters(
+                tipo_prediccion="siembra",
+                cliente_id=cliente_id,
+                lote_id=lote_id,
+                cultivo=normalised_cultivo,
+                campana=campana,
+                limit=limit,
+                offset=offset,
             )
-
-        # Validar y normalizar cultivo si se proporciona
-        normalised_cultivo: Optional[str] = None
-        if cultivo is not None:
-            normalised_cultivo = validate_cultivo(cultivo, ALLOWED_CULTIVOS)
-
-        # Obtener registros
-        registros = await self._persistence_context.predicciones.list_by_filters(
-            tipo_prediccion="siembra",
-            cliente_id=cliente_id,
-            lote_id=lote_id,
-            cultivo=normalised_cultivo,
-            campana=campana,
-            limit=limit,
-            offset=offset,
-        )
 
         return [self._map_prediccion_to_history_item(pred) for pred in registros]
 
@@ -291,40 +339,41 @@ class SiembraRecommendationService:
         Raises:
             RuntimeError: Si no hay repositorio configurado
         """
-        if self._persistence_context.predicciones is None:
-            raise RuntimeError(
-                "El contexto de persistencia no cuenta con repositorio de predicciones."
-            )
-
-        # Parsear ventana a fechas
-        ventana = response.recomendacion_principal.ventana
-        fecha_validez_desde = None
-        fecha_validez_hasta = None
-        
-        if len(ventana) == 2:
-            try:
-                fecha_validez_desde = datetime.strptime(ventana[0], "%d-%m-%Y").date()
-                fecha_validez_hasta = datetime.strptime(ventana[1], "%d-%m-%Y").date()
-            except ValueError:
-                logger.warning(
-                    "No se pudo parsear la ventana a fechas válidas",
-                    extra={"ventana": ventana}
+        async with self._persistence_context_factory() as persistence:
+            if persistence.predicciones is None:
+                raise RuntimeError(
+                    "El contexto de persistencia no cuenta con repositorio de predicciones."
                 )
 
-        # Guardar en base de datos
-        await self._persistence_context.predicciones.save(
-            lote_id=request.lote_id,
-            cliente_id=request.cliente_id,
-            tipo_prediccion=response.tipo_recomendacion,
-            cultivo=response.cultivo,
-            recomendacion_principal=response.recomendacion_principal.model_dump(mode="json"),
-            alternativas=[dict(alt) for alt in response.alternativas],
-            nivel_confianza=response.nivel_confianza,
-            datos_entrada=request.model_dump(mode="json"),
-            modelo_version=self._model_loader.metadata.get("version"),
-            fecha_validez_desde=fecha_validez_desde,
-            fecha_validez_hasta=fecha_validez_hasta,
-        )
+            # Parsear ventana a fechas
+            ventana = response.recomendacion_principal.ventana
+            fecha_validez_desde = None
+            fecha_validez_hasta = None
+            
+            if len(ventana) == 2:
+                try:
+                    fecha_validez_desde = datetime.strptime(ventana[0], "%d-%m-%Y").date()
+                    fecha_validez_hasta = datetime.strptime(ventana[1], "%d-%m-%Y").date()
+                except ValueError:
+                    logger.warning(
+                        "No se pudo parsear la ventana a fechas válidas",
+                        extra={"ventana": ventana}
+                    )
+
+            # Guardar en base de datos
+            await persistence.predicciones.save(
+                lote_id=request.lote_id,
+                cliente_id=request.cliente_id,
+                tipo_prediccion=response.tipo_recomendacion,
+                cultivo=response.cultivo,
+                recomendacion_principal=response.recomendacion_principal.model_dump(mode="json"),
+                alternativas=[dict(alt) for alt in response.alternativas],
+                nivel_confianza=response.nivel_confianza,
+                datos_entrada=request.model_dump(mode="json"),
+                modelo_version=self._model_loader.metadata.get("version"),
+                fecha_validez_desde=fecha_validez_desde,
+                fecha_validez_hasta=fecha_validez_hasta,
+            )
 
     # Nota: Se eliminó el cálculo y exposición de 'factores_considerados'.
 

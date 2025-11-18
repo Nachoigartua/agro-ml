@@ -17,7 +17,7 @@
     </div>
   </header>
 
-  <div class="content-grid" [class.has-result]="!!result">
+  <div class="content-grid" [class.has-result]="!!bulkResult">
     <section class="panel panel-form">
       <header class="panel-header">
         <div>
@@ -28,10 +28,19 @@
 
       <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
         <div class="field-group">
-          <label for="loteId">Lote</label>
-          <select id="loteId" formControlName="loteId">
+          <label for="loteIds">Lotes</label>
+          <select
+            id="loteIds"
+            formControlName="loteIds"
+            multiple
+            size="5"
+          >
             <option *ngFor="let lote of lotes" [value]="lote.value">{{ lote.label }}</option>
           </select>
+          <small class="field-hint">Usa Ctrl/⌘ o shift + click para seleccionar múltiples lotes.</small>
+          <span class="field-helper">
+            {{ (recommendationForm.value.loteIds?.length ?? 0) }} lote{{ (recommendationForm.value.loteIds?.length ?? 0) === 1 ? '' : 's' }} seleccionados
+          </span>
         </div>
 
         <div class="field-group">
@@ -61,16 +70,13 @@
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" [disabled]="isLoading || recommendationForm.invalid">
             <span *ngIf="!isLoading">Generar recomendacion</span>
-            <span *ngIf="isLoading">
-              <span class="loading"></span>
-              Procesando...
-            </span>
+            <span *ngIf="isLoading">Generando recomendacion...</span>
           </button>
         </div>
       </form>
     </section>
 
-    <section class="panel panel-result" *ngIf="result || error || isLoading">
+    <section class="panel panel-result" *ngIf="bulkResult || error || isLoading">
       <div class="loader" *ngIf="isLoading">
         <div class="loading"></div>
         <p>Generando recomendacion...</p>
@@ -80,90 +86,119 @@
         <strong>Error:</strong> {{ error }}
       </div>
 
-      <ng-container *ngIf="result && !isLoading">
+      <ng-container *ngIf="bulkResult && !isLoading">
         <header class="result-header">
           <div>
-            <span class="pill">{{ result.tipo_recomendacion | titlecase }}</span>
-            <h2>Plan recomendado para {{ getLoteLabel(result.lote_id) }}</h2>
-            <p class="result-subtitle">
-              Cultivo: {{ result.cultivo | titlecase }} | Campaña: {{ getDatosEntradaCampana() }}
+            <span class="pill">Siembra</span>
+            <h2>Resultados para {{ bulkResult.total }} lote{{ bulkResult.total === 1 ? '' : 's' }}</h2>
+            <p class="result-subtitle" *ngIf="hasPartialFailures">
+              Se generaron algunas recomendaciones con errores. Revisa cada lote debajo.
             </p>
           </div>
         </header>
 
-        <div class="result-grid">
-          <article class="result-card">
-            <h3>Recomendación principal</h3>
-            <div class="main-window">
-              <span class="date">{{ formatDate(result.recomendacion_principal.fecha_optima) }}</span>
-              <span class="range-label">Ventana de siembra óptima:</span>
-              <span class="range">{{ formatVentana(result.recomendacion_principal.ventana) }}</span>
-              <span class="confidence-inline">Confianza: {{ result.recomendacion_principal.confianza * 100 | number: '1.0-0' }}%</span>
-              <div *ngIf="result.recomendacion_principal.riesgos?.length">
-                <span class="range-label">Riesgos</span>
-                <ul class="tag-list">
-                  <li *ngFor="let riesgo of result.recomendacion_principal.riesgos">{{ riesgo }}</li>
-                </ul>
-              </div>
-            </div>
-          </article>
+        <div class="result-list">
+          <div class="result-entry" *ngFor="let item of bulkResult.resultados">
+            <ng-container *ngIf="item.success && item.response as response; else loteError">
+              <header class="result-header">
+                <div>
+                  <span class="pill">{{ getLoteLabel(item.lote_id) }}</span>
+                  <h3>Recomendaciones de siembra</h3>
+                  <p class="result-subtitle">
+                    Cultivo: {{ response.cultivo | titlecase }} |
+                    Campaña: {{ getDatosEntradaValue(response, 'campana') }}
+                  </p>
+                </div>
+              </header>
 
-          <article class="result-card" *ngIf="result.alternativas?.length">
-            <h3>Alternativa</h3>
-            <div class="alternative-grid">
-              <div class="alternative-card" *ngFor="let alt of result.alternativas; trackBy: trackByAlternative">
-                <!-- Descripción del escenario climático -->
-                <div class="scenario-badge" *ngIf="alt.escenario_climatico">
-                  <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
-                  <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
-                </div>
-                
-                <div class="main-window">
-                  <span class="date">{{ formatDate(alt.fecha) }}</span>
-                  <span class="range-label">Ventana de siembra óptima:</span>
-                  <span class="range">{{ formatVentana(alt.ventana) }}</span>
-                  <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
-                </div>
-                
-                <div class="alt-pros-cons">
-                  <div *ngIf="alt.pros?.length">
-                    <span class="label">Pros</span>
-                    <ul class="chip-list">
-                      <li *ngFor="let it of alt.pros">{{ it }}</li>
-                    </ul>
+              <div class="result-grid">
+                <article class="result-card">
+                  <h4>Recomendación principal</h4>
+                  <div class="main-window">
+                    <span class="date">{{ formatDate(response.recomendacion_principal.fecha_optima) }}</span>
+                    <span class="range-label">Ventana de siembra óptima:</span>
+                    <span class="range">{{ formatVentana(response.recomendacion_principal.ventana) }}</span>
+                    <span class="confidence-inline">
+                      Confianza:
+                      {{ response.recomendacion_principal.confianza * 100 | number: '1.0-0' }}%
+                    </span>
+                    <div *ngIf="response.recomendacion_principal.riesgos?.length" class="risk-list">
+                      <span class="range-label">Riesgos</span>
+                      <div class="risk-badges">
+                        <span class="risk-badge" *ngFor="let riesgo of response.recomendacion_principal.riesgos">
+                          {{ riesgo }}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div *ngIf="alt.contras?.length">
-                    <span class="label">Contras</span>
-                    <ul class="chip-list chip-list-warn">
-                      <li *ngFor="let it of alt.contras">{{ it }}</li>
-                    </ul>
+                </article>
+
+                <article class="result-card" *ngIf="response.alternativas?.length">
+                  <h4>Recomendación alternativa</h4>
+                  <div class="alternative-grid">
+                    <div class="alternative-card" *ngFor="let alt of response.alternativas; trackBy: trackByAlternative">
+                      <div class="scenario-badge" *ngIf="alt.escenario_climatico">
+                        <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
+                        <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
+                      </div>
+
+                      <div class="main-window">
+                        <span class="date">{{ formatDate(alt.fecha) }}</span>
+                        <span class="range-label">Ventana de siembra óptima:</span>
+                        <span class="range">{{ formatVentana(alt.ventana) }}</span>
+                        <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+                      </div>
+
+                      <div class="alt-pros-cons">
+                        <div *ngIf="alt.pros?.length">
+                          <span class="label">Pros</span>
+                          <ul class="chip-list">
+                            <li *ngFor="let it of alt.pros">{{ it }}</li>
+                          </ul>
+                        </div>
+                        <div *ngIf="alt.contras?.length">
+                          <span class="label">Contras</span>
+                          <ul class="chip-list chip-list-warn">
+                            <li *ngFor="let it of alt.contras">{{ it }}</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </article>
+
+                <article
+                  class="result-card"
+                  *ngIf="response.costos_estimados && (response.costos_estimados | keyvalue).length"
+                >
+                  <h4>Costos estimados</h4>
+                  <dl class="costs-grid">
+                    <div *ngFor="let costo of response.costos_estimados | keyvalue">
+                      <dt>{{ costo.key | titlecase }}</dt>
+                      <dd>{{ costo.value | currency: 'USD':'symbol':'1.0-0' }}</dd>
+                    </div>
+                  </dl>
+                </article>
+
+                <article class="result-card" *ngIf="response.metadata">
+                  <h4>Metadatos</h4>
+                  <pre>{{ response.metadata | json }}</pre>
+                </article>
               </div>
-            </div>
-          </article>
 
-          
+              <footer class="result-footer">
+                <span>Generado el {{ formatDateTime(response.fecha_generacion) }}</span>
+              </footer>
+            </ng-container>
 
-          <article class="result-card" *ngIf="result.costos_estimados && (result.costos_estimados | keyvalue).length">
-            <h3>Costos estimados</h3>
-            <dl class="costs-grid">
-              <div *ngFor="let item of result.costos_estimados | keyvalue">
-                <dt>{{ item.key | titlecase }}</dt>
-                <dd>{{ item.value | currency: 'USD':'symbol':'1.0-0' }}</dd>
+            <ng-template #loteError>
+              <div class="alert alert-error">
+                <strong>{{ getLoteLabel(item.lote_id) }}:</strong>
+                {{ item.error ?? 'Ocurrió un error inesperado al generar la recomendación.' }}
               </div>
-            </dl>
-          </article>
-
-          <article class="result-card" *ngIf="result.metadata">
-            <h3>Metadatos</h3>
-            <pre>{{ result.metadata | json }}</pre>
-          </article>
+            </ng-template>
+          </div>
         </div>
-
-        <footer class="result-footer">
-          <span>Generado el {{ formatDateTime(result.fecha_generacion) }}</span>
-        </footer>
       </ng-container>
     </section>
   </div>

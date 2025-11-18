@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import joblib
 
@@ -18,18 +18,18 @@ class ModelLoader:
 
     def __init__(
         self,
-        persistence_context: PersistenceContext,
+        persistence_context_factory: Callable[[], PersistenceContext],
         model_name: str = "modelo_siembra",
         model_type: str = "random_forest_regressor",
     ):
         """Inicializa el cargador de modelos.
         
         Args:
-            persistence_context: Contexto de persistencia con acceso a repositorios
+            persistence_context_factory: Fábrica de contextos con acceso a repositorios
             model_name: Nombre del modelo a cargar
             model_type: Tipo de modelo (ej: random_forest_regressor)
         """
-        self._persistence_context = persistence_context
+        self._persistence_context_factory = persistence_context_factory
         self._model_name = model_name
         self._model_type = model_type
         
@@ -84,15 +84,16 @@ class ModelLoader:
 
     async def _get_active_model(self):
         """Obtiene el modelo activo desde el repositorio."""
-        if self._persistence_context.modelos is None:
-            raise RuntimeError(
-                "El contexto de persistencia no cuenta con repositorio de modelos configurado."
-            )
+        async with self._persistence_context_factory() as persistence:
+            if persistence.modelos is None:
+                raise RuntimeError(
+                    "El contexto de persistencia no cuenta con repositorio de modelos configurado."
+                )
 
-        entidad = await self._persistence_context.modelos.get_active(
-            nombre=self._model_name,
-            tipo_modelo=self._model_type,
-        )
+            entidad = await persistence.modelos.get_active(
+                nombre=self._model_name,
+                tipo_modelo=self._model_type,
+            )
         
         if entidad is None:
             raise RuntimeError(

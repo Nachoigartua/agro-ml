@@ -31,10 +31,9 @@ async def get_main_system_client(request: Request) -> MockMainSystemAPIClient:
 
 async def get_siembra_service(
     client: MockMainSystemAPIClient = Depends(get_main_system_client),
-    persistence: PersistenceContext = Depends(get_persistence_context),
 ) -> SiembraRecommendationService:
     """Proporciona el servicio de recomendaciones de siembra."""
     return SiembraRecommendationService(
         main_system_client=client,
-        persistence_context=persistence,
+        persistence_context_factory=PersistenceContext,
     )
