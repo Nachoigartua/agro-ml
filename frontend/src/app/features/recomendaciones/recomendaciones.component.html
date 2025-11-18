@@ -37,7 +37,7 @@
           >
             <option *ngFor="let lote of lotes" [value]="lote.value">{{ lote.label }}</option>
           </select>
-          <small class="field-hint">Usa Ctrl/⌘ + clic o shift para seleccionar múltiples lotes.</small>
+          <small class="field-hint">Usa Ctrl/⌘ o shift + click para seleccionar múltiples lotes.</small>
           <span class="field-helper">
             {{ (recommendationForm.value.loteIds?.length ?? 0) }} lote{{ (recommendationForm.value.loteIds?.length ?? 0) === 1 ? '' : 's' }} seleccionados
           </span>

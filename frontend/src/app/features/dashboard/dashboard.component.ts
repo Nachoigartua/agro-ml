@@ -377,7 +377,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const control = this.serverFiltersForm.get('lote_id');
     if (control) {
       // Dropdown simple: si hay 0 -> '', 1 -> id, >1 -> '' (mostrar 'Todos')
-      control.setValue(ids.length === 1 ? ids[0] : '', { emitEvent: false });
+      const nextValue = ids.length === 1 ? ids[0] : '';
+      if (control.value !== nextValue) {
+        control.setValue(nextValue);
+      }
     }
 
     // Si 0 o 1 seleccionado, podemos pegar al backend; si >1, filtramos local
@@ -416,5 +419,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.loadDashboardData();
       }
     }
+  }
+
+  trackLoteOption(_index: number, option: LoteOption): string {
+    return option.value;
   }
 }

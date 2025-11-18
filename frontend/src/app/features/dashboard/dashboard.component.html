@@ -18,9 +18,15 @@
     <div class="filter-grid">
       <div class="filter-control">
         <label for="filter-lote">Lote</label>
-        <select id="filter-lote" formControlName="lote_id" (change)="onLoteDropdownChange($event)" (click)="onLoteDropdownClick($event)">
+        <select
+          id="filter-lote"
+          formControlName="lote_id"
+          (change)="onLoteDropdownChange($event)"
+          (click)="onLoteDropdownClick($event)">
           <option value="">Todos</option>
-          <option *ngFor="let lote of availableLotes" [value]="lote.value">{{ lote.label }}</option>
+          <option *ngFor="let lote of availableLotes; trackBy: trackLoteOption" [value]="lote.value">
+            {{ lote.label }}
+          </option>
         </select>
       </div>
       <div class="filter-control">
