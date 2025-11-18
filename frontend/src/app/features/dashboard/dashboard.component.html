@@ -17,17 +17,25 @@
   <section class="filters-panel" [formGroup]="serverFiltersForm">
     <div class="filter-grid">
       <div class="filter-control">
-        <label for="filter-lote">Lote</label>
+        <label for="filter-lote">Lotes</label>
         <select
           id="filter-lote"
           formControlName="lote_id"
-          (change)="onLoteDropdownChange($event)"
-          (click)="onLoteDropdownClick($event)">
-          <option value="">Todos</option>
+          multiple
+          size="5">
           <option *ngFor="let lote of availableLotes; trackBy: trackLoteOption" [value]="lote.value">
             {{ lote.label }}
           </option>
         </select>
+        <small class="field-hint">Usa Ctrl/⌘ o Shift para seleccionar múltiples lotes.</small>
+        <div class="field-helper-row">
+          <span class="field-helper">
+            {{ selectedLoteCount }} lote{{ selectedLoteCount === 1 ? '' : 's' }} seleccionados
+          </span>
+          <button class="link-button" type="button" (click)="clearLoteFilter()" *ngIf="selectedLoteCount > 0">
+            Limpiar selección
+          </button>
+        </div>
       </div>
       <div class="filter-control">
         <label for="filter-cultivo">Cultivo</label>

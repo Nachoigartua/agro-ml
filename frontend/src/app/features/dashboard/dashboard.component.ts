@@ -48,7 +48,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private readonly formBuilder: FormBuilder
   ) {
     this.serverFiltersForm = this.formBuilder.group({
-      lote_id: [''],
+      lote_id: [[]],
       cultivo: [''],
       campana: [''],
     });
@@ -154,26 +154,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get totalSummaryText(): string {
-    if (this.totalHistory === 0) {
+    const current = this.historyItems.length;
+    if (current === 0) {
       return 'Sin recomendaciones registradas';
     }
 
-    if (this.totalHistory === 1) {
+    if (current === 1) {
       return '1 recomendación encontrada';
     }
 
-    return `${this.totalHistory} recomendaciones encontradas`;
+    return `${current} recomendaciones encontradas`;
   }
 
   private setupFilterSubscriptions(): void {
     const filterChangesSub = this.serverFiltersForm.valueChanges
       .pipe(debounceTime(300))
       .subscribe((raw) => {
-        // Sincroniza selección de UI -> mapa
         const rawLote = (raw as any)?.lote_id as string | string[] | undefined;
         const ids = Array.isArray(rawLote)
-          ? rawLote.filter((v) => !!v)
+          ? rawLote.filter((v): v is string => !!v && v.length > 0)
           : (rawLote ? [rawLote] : []);
+
         if (this.miniMap) {
           this.miniMap.setSelection(ids);
         }
@@ -181,7 +182,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         ids.forEach((id) => this.selectedLotes.add(id));
         this.applyLocalFilters();
 
-        // Decide si hace request al backend
+        if (ids.length > 1) {
+          this.loadDashboardData();
+          return;
+        }
+
         const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
         const serialized = JSON.stringify(filters);
         if (serialized !== this.lastAppliedFilters) {
@@ -373,55 +378,39 @@ export class DashboardComponent implements OnInit, OnDestroy {
   onSelectedLotesChange(ids: string[]): void {
     this.selectedLotes.clear();
     ids.forEach((id) => this.selectedLotes.add(id));
-    // Reflejar selección en el select (sin disparar requests)
+    // Reflejar selección en el select
     const control = this.serverFiltersForm.get('lote_id');
     if (control) {
-      // Dropdown simple: si hay 0 -> '', 1 -> id, >1 -> '' (mostrar 'Todos')
-      const nextValue = ids.length === 1 ? ids[0] : '';
-      if (control.value !== nextValue) {
+      const nextValue = [...ids];
+      const currentValue = control.value;
+      if (!Array.isArray(currentValue) || !this.areSelectionsEqual(currentValue, nextValue)) {
         control.setValue(nextValue);
       }
     }
+  }
 
-    // Si 0 o 1 seleccionado, podemos pegar al backend; si >1, filtramos local
-    if (ids.length <= 1) {
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-        return;
-      }
-      this.applyLocalFilters();
+  clearLoteFilter(): void {
+    if (this.selectedLotes.size === 0) {
       return;
     }
-
-    // >1 seleccionado: cargar todo el historial (sin lote_id) y luego filtrar localmente
-    this.loadDashboardData();
-  }
-
-  // Maneja cambios normales del dropdown; la lógica principal ya está en valueChanges del form.
-  onLoteDropdownChange(event: Event): void {
-    // No hacemos nada aquí; el valueChanges del form se encarga.
-  }
-
-  // Caso especial: si ya está en '' (Todos), seleccionar otra vez no dispara valueChanges.
-  // Detectamos el click y, si corresponde, limpiamos selección del mapa y filtros locales.
-  onLoteDropdownClick(event: Event): void {
-    const current = (event.target as HTMLSelectElement)?.value ?? '';
-    if (current === '' && this.selectedLotes.size > 0) {
-      this.miniMap?.clearSelection();
-      this.selectedLotes.clear();
-      this.applyLocalFilters();
-
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-      }
-    }
+    this.selectedLotes.clear();
+    this.serverFiltersForm.get('lote_id')?.setValue([]);
+    this.miniMap?.clearSelection();
   }
 
   trackLoteOption(_index: number, option: LoteOption): string {
     return option.value;
+  }
+
+  get selectedLoteCount(): number {
+    const value = this.serverFiltersForm.value?.lote_id;
+    return Array.isArray(value) ? value.length : (value ? 1 : 0);
+  }
+
+  private areSelectionsEqual(current: string[], next: string[]): boolean {
+    if (current.length !== next.length) {
+      return false;
+    }
+    return current.every((value, index) => value === next[index]);
   }
 }
