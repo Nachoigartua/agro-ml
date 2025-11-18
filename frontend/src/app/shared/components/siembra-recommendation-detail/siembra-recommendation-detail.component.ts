@@ -93,7 +93,4 @@ export class SiembraRecommendationDetailComponent {
     return !!this.recommendation?.costos_estimados && Object.keys(this.recommendation.costos_estimados).length > 0;
   }
 
-  get hasMetadata(): boolean {
-    return !!this.recommendation?.metadata && Object.keys(this.recommendation.metadata).length > 0;
-  }
 }

@@ -76,10 +76,6 @@
       </dl>
     </article>
 
-    <article class="result-card" *ngIf="hasMetadata">
-      <h4>Metadatos</h4>
-      <pre>{{ recommendation.metadata | json }}</pre>
-    </article>
   </div>
 
   <footer class="result-footer" *ngIf="recommendation.fecha_generacion">
