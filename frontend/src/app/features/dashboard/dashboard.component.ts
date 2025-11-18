@@ -3,6 +3,7 @@ import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ApiService } from '@core/services/api.service';
+import { RecommendationsService } from '@core/services/recommendations.service';
 import {
   SiembraHistoryFilters,
   SiembraHistoryItem,
@@ -33,6 +34,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   totalHistory = 0;
   historyItems: SiembraHistoryItem[] = [];
+  pdfError: string | null = null;
 
   private allHistoryItems: SiembraHistoryItem[] = [];
   private filteredHistoryItems: SiembraHistoryItem[] = [];
@@ -42,10 +44,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private readonly loteLabelMap = new Map<string, string>();
   private readonly selectedLotes = new Set<string>();
+  private readonly downloadingHistoryIds = new Set<string>();
 
   constructor(
     private readonly apiService: ApiService,
-    private readonly formBuilder: FormBuilder
+    private readonly formBuilder: FormBuilder,
+    private readonly recommendationsService: RecommendationsService
   ) {
     this.serverFiltersForm = this.formBuilder.group({
       lote_id: [[]],
@@ -69,6 +73,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loadDashboardData(): void {
     this.isLoading = true;
     this.error = null;
+    this.pdfError = null;
     const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
     this.lastAppliedFilters = JSON.stringify(filters);
 
@@ -96,6 +101,40 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.activeRequestSubscription = requestSub;
     this.subscriptions.add(requestSub);
+  }
+
+  onDownloadHistoryPdf(item: SiembraHistoryItem): void {
+    if (!item.id) {
+      return;
+    }
+    const id = String(item.id);
+    if (this.downloadingHistoryIds.has(id)) {
+      return;
+    }
+    this.pdfError = null;
+    this.downloadingHistoryIds.add(id);
+    const downloadSub = this.recommendationsService
+      .downloadHistoryPdf(id)
+      .subscribe({
+        next: (blob) => {
+          const filename = this.buildHistoryFilename(item);
+          this.triggerFileDownload(blob, filename);
+        },
+        error: () => {
+          this.pdfError = 'No pudimos descargar el PDF de esta recomendación. Intenta nuevamente.';
+        },
+        complete: () => {
+          this.downloadingHistoryIds.delete(id);
+        }
+      });
+    this.subscriptions.add(downloadSub);
+  }
+
+  isHistoryPdfLoading(item: SiembraHistoryItem): boolean {
+    if (!item.id) {
+      return false;
+    }
+    return this.downloadingHistoryIds.has(String(item.id));
   }
 
   resolveConfidence(item: SiembraHistoryItem): number | null {
@@ -412,5 +451,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return false;
     }
     return current.every((value, index) => value === next[index]);
+  }
+
+  private buildHistoryFilename(item: SiembraHistoryItem): string {
+    const lote = this.sanitizeFileValue(this.getLoteLabel(item.lote_id));
+    const fecha = item.fecha_creacion ? this.sanitizeFileValue(item.fecha_creacion) : 'sin-fecha';
+    return `historial-${lote}-${fecha}.pdf`;
+  }
+
+  private triggerFileDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private sanitizeFileValue(value: string | undefined | null): string {
+    if (!value) {
+      return 'documento';
+    }
+    return value.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
   }
 }

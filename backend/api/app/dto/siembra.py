@@ -14,6 +14,7 @@ class RecomendacionResponse(BaseModel):
 
     lote_id: str
     tipo_recomendacion: str
+    prediccion_id: Optional[UUID] = None
     recomendacion_principal: Dict[str, Any]
     alternativas: List[Dict[str, Any]] = Field(default_factory=list)
     nivel_confianza: float = Field(ge=0.0, le=1.0)
@@ -148,3 +149,9 @@ class SiembraHistoryResponse(BaseModel):
 
     total: int
     items: List[SiembraHistoryItem]
+
+class RecommendationPdfRequest(BaseModel):
+    """Payload para generar un PDF de recomendación."""
+
+    recomendacion: SiembraRecommendationResponse
+    metadata: Dict[str, Any] = Field(default_factory=dict)

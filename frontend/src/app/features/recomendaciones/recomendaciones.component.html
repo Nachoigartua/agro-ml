@@ -85,6 +85,13 @@
       <div class="alert alert-error" *ngIf="error && !isLoading">
         <strong>Error:</strong> {{ error }}
       </div>
+      <div class="alert alert-error" *ngIf="pdfError && bulkResult">
+        <div>
+          <strong>No pudimos generar el PDF.</strong>
+          <p>{{ pdfError }}</p>
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="pdfError = null">Entendido</button>
+      </div>
 
       <ng-container *ngIf="bulkResult && !isLoading">
         <header class="result-header">
@@ -108,6 +115,16 @@
                     Cultivo: {{ response.cultivo | titlecase }} |
                     Campaña: {{ getDatosEntradaValue(response, 'campana') }}
                   </p>
+                </div>
+                <div class="result-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    (click)="onDownloadResultPdf(response, getLoteLabel(item.lote_id))"
+                    [disabled]="isRecommendationDownloading(response)">
+                    <span *ngIf="!isRecommendationDownloading(response)">Generar PDF</span>
+                    <span *ngIf="isRecommendationDownloading(response)">Generando...</span>
+                  </button>
                 </div>
               </header>
 

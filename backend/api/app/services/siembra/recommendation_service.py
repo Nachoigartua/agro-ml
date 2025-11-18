@@ -179,7 +179,8 @@ class SiembraRecommendationService:
         )
 
         # 10. Persistir recomendación
-        await self._persist_recommendation(request, response)
+        entidad = await self._persist_recommendation(request, response)
+        response.prediccion_id = entidad.id
 
         logger.info(
             "Recomendación de siembra generada exitosamente",
@@ -288,6 +289,24 @@ class SiembraRecommendationService:
 
         return [self._map_prediccion_to_history_item(pred) for pred in registros]
 
+    async def get_history_entry(
+        self,
+        *,
+        prediccion_id: str,
+    ) -> SiembraHistoryItem:
+        """Obtiene un registro puntual del historial de siembra."""
+        async with self._persistence_context_factory() as persistence:
+            if persistence.predicciones is None:
+                raise RuntimeError(
+                    "El contexto de persistencia no cuenta con repositorio de predicciones."
+                )
+
+            entidad = await persistence.predicciones.get_by_id(prediccion_id)
+            if entidad is None:
+                raise ValueError("No se encontr�� la recomendaci��n solicitada.")
+
+        return self._map_prediccion_to_history_item(entidad)
+
     async def _ensure_components_ready(self) -> None:
         """Asegura que todos los componentes estén listos para uso."""
         # Cargar modelo si no está cargado
@@ -329,7 +348,7 @@ class SiembraRecommendationService:
         self,
         request: SiembraRequest,
         response: SiembraRecommendationResponse,
-    ) -> None:
+    ) -> Prediccion:
         """Persiste la recomendación generada.
         
         Args:
@@ -361,7 +380,7 @@ class SiembraRecommendationService:
                     )
 
             # Guardar en base de datos
-            await persistence.predicciones.save(
+            entidad = await persistence.predicciones.save(
                 lote_id=request.lote_id,
                 cliente_id=request.cliente_id,
                 tipo_prediccion=response.tipo_recomendacion,
@@ -374,6 +393,7 @@ class SiembraRecommendationService:
                 fecha_validez_desde=fecha_validez_desde,
                 fecha_validez_hasta=fecha_validez_hasta,
             )
+            return entidad
 
     # Nota: Se eliminó el cálculo y exposición de 'factores_considerados'.
 

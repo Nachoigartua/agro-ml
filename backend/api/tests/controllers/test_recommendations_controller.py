@@ -38,6 +38,8 @@ def test_siembra_recommendation_happy_path(client: TestClient):
     assert data["tipo_recomendacion"] == "siembra"
     assert data["cultivo"] == payload["cultivo"]
 
+    assert data.get("prediccion_id")
+
     # Validaciones de la recomendacion principal (nuevo esquema)
     rp = data.get("recomendacion_principal", {})
     assert isinstance(rp, dict)
@@ -172,3 +174,108 @@ def test_historial_siembra_endpoint_returns_400_on_invalid_filters(client: TestC
 
     assert response.status_code == 400
     assert "cultivo debe ser uno de" in response.json()["detail"]
+
+
+def test_descargar_pdf_por_id_retorna_documento(client: TestClient):
+    from app.dependencies import get_siembra_service, get_pdf_generator
+    from app.dto.siembra import RecomendacionPrincipalSiembra, SiembraHistoryItem
+
+    class _StubPdf:
+        def __init__(self):
+            self.called = False
+            self.payload = None
+
+        def build_pdf(self, payload):
+            self.called = True
+            self.payload = payload
+            return b"%PDF-1.4"
+    class _StubService:
+        async def get_history_entry(self, **kwargs):
+            from datetime import datetime, timezone
+            from uuid import uuid4 as _uuid4
+            return SiembraHistoryItem(
+                id=_uuid4(),
+                lote_id=_uuid4(),
+                cliente_id=_uuid4(),
+                cultivo="trigo",
+                campana="2024/2025",
+                fecha_creacion=datetime.now(timezone.utc),
+                fecha_validez_desde=None,
+                fecha_validez_hasta=None,
+                nivel_confianza=0.8,
+                recomendacion_principal=RecomendacionPrincipalSiembra(
+                    fecha_optima="01-09-2025",
+                    ventana=["30-08-2025", "03-09-2025"],
+                    confianza=0.85,
+                    riesgos=[],
+                ),
+                alternativas=[],
+                modelo_version="v1",
+                datos_entrada={"campana": "2024/2025"},
+            )
+
+    pdf_stub = _StubPdf()
+    app.dependency_overrides[get_siembra_service] = lambda: _StubService()
+    app.dependency_overrides[get_pdf_generator] = lambda: pdf_stub
+
+    try:
+        response = client.get(
+            f"/api/v1/recomendaciones/siembra/{uuid4()}/pdf",
+            headers=_auth_headers(),
+        )
+    finally:
+        app.dependency_overrides.pop(get_siembra_service, None)
+        app.dependency_overrides.pop(get_pdf_generator, None)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert pdf_stub.called
+
+
+def test_generar_pdf_desde_payload(client: TestClient):
+    from app.dependencies import get_pdf_generator
+
+    class _StubPdf:
+        def __init__(self):
+            self.received = None
+
+        def build_pdf(self, payload):
+            self.received = payload
+            return b"%PDF-1.4"
+
+    pdf_stub = _StubPdf()
+    app.dependency_overrides[get_pdf_generator] = lambda: pdf_stub
+
+    body = {
+        "recomendacion": {
+            "lote_id": "lote-prueba",
+            "tipo_recomendacion": "siembra",
+            "prediccion_id": str(uuid4()),
+            "cultivo": "trigo",
+            "recomendacion_principal": {
+                "fecha_optima": "01-09-2025",
+                "ventana": ["30-08-2025", "03-09-2025"],
+                "confianza": 0.9,
+                "riesgos": []
+            },
+            "alternativas": [],
+            "nivel_confianza": 0.9,
+            "costos_estimados": {},
+            "fecha_generacion": "2025-01-01T00:00:00Z",
+            "datos_entrada": {"campana": "2024/2025"}
+        },
+        "metadata": {"lote_label": "Lote Test"}
+    }
+
+    try:
+        response = client.post(
+            "/api/v1/recomendaciones/siembra/pdf",
+            json=body,
+            headers=_auth_headers(),
+        )
+    finally:
+        app.dependency_overrides.pop(get_pdf_generator, None)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert pdf_stub.received is not None
