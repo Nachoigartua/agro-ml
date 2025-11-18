@@ -1,0 +1,84 @@
+<section class="recommendation-detail" *ngIf="recommendation">
+  <header class="result-header">
+    <div>
+      <span class="pill">{{ computedLoteLabel }}</span>
+      <h3>Recomendaciones de siembra</h3>
+      <p class="result-subtitle">
+        Cultivo: {{ recommendation.cultivo | titlecase }} |
+        Campaña: {{ getDatosEntradaValue('campana') || '—' }}
+      </p>
+    </div>
+  </header>
+
+  <div class="result-grid">
+    <article class="result-card">
+      <h4>Recomendación principal</h4>
+      <div class="main-window">
+        <span class="date">{{ formatDate(recommendation.recomendacion_principal?.fecha_optima) }}</span>
+        <span class="range-label">Ventana de siembra óptima:</span>
+        <span class="range">{{ formatVentana(recommendation.recomendacion_principal?.ventana) }}</span>
+        <span class="confidence-inline">
+          Confianza:
+          {{ (recommendation.recomendacion_principal?.confianza ?? recommendation.nivel_confianza) * 100 | number: '1.0-0' }}%
+        </span>
+        <div *ngIf="recommendation.recomendacion_principal?.riesgos?.length" class="risk-list">
+          <span class="range-label">Riesgos</span>
+          <div class="risk-badges">
+            <span class="risk-badge" *ngFor="let riesgo of recommendation.recomendacion_principal?.riesgos">
+              {{ riesgo }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="result-card" *ngIf="hasAlternatives">
+      <h4>Recomendación alternativa</h4>
+      <div class="alternative-grid">
+        <div class="alternative-card" *ngFor="let alt of recommendation.alternativas; trackBy: trackByAlternative">
+          <div class="scenario-badge" *ngIf="alt.escenario_climatico">
+            <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
+            <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
+          </div>
+
+          <div class="main-window">
+            <span class="date">{{ formatDate(alt.fecha) }}</span>
+            <span class="range-label">Ventana de siembra óptima:</span>
+            <span class="range">{{ formatVentana(alt.ventana) }}</span>
+            <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+          </div>
+
+          <div class="alt-pros-cons">
+            <div *ngIf="alt.pros?.length">
+              <span class="label">Pros</span>
+              <ul class="chip-list">
+                <li *ngFor="let it of alt.pros">{{ it }}</li>
+              </ul>
+            </div>
+            <div *ngIf="alt.contras?.length">
+              <span class="label">Contras</span>
+              <ul class="chip-list chip-list-warn">
+                <li *ngFor="let it of alt.contras">{{ it }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="result-card" *ngIf="hasCosts">
+      <h4>Costos estimados</h4>
+      <dl class="costs-grid">
+        <div *ngFor="let costo of recommendation.costos_estimados | keyvalue">
+          <dt>{{ costo.key | titlecase }}</dt>
+          <dd>{{ costo.value | currency: 'USD':'symbol':'1.0-0' }}</dd>
+        </div>
+      </dl>
+    </article>
+
+  </div>
+
+  <footer class="result-footer" *ngIf="recommendation.fecha_generacion">
+    <span>Generado el {{ formatDateTime(recommendation.fecha_generacion) }}</span>
+  </footer>
+</section>

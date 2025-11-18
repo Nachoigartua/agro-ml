@@ -1,0 +1,217 @@
+.recommendation-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+
+  .pill {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(33, 150, 243, 0.12);
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08rem;
+    margin-bottom: 0.4rem;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+
+  .result-subtitle {
+    margin: 0.35rem 0 0 0;
+    color: var(--text-secondary);
+  }
+}
+
+.result-grid {
+  display: grid;
+  gap: 1.5rem;
+
+  @media (min-width: 992px) {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+.result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 18px;
+  background: var(--surface-subtle, #f9fafb);
+  border: 1px solid rgba(220, 220, 220, 0.5);
+
+  h4 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .main-window {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+
+    .date {
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    .range-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-top: 0.75rem;
+    }
+
+    .range {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .confidence-inline {
+      margin-top: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(76, 175, 80, 0.12);
+      color: var(--success);
+      font-size: 0.85rem;
+      font-weight: 600;
+      align-self: flex-start;
+    }
+  }
+}
+
+.risk-list {
+  margin-top: 0.75rem;
+}
+
+.risk-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.risk-badge {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.alternative-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.alternative-card {
+  padding: 1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(220, 220, 220, 0.5);
+  display: grid;
+  gap: 1rem;
+}
+
+.scenario-badge {
+  padding: 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 193, 7, 0.05));
+  border: 1px solid rgba(255, 152, 0, 0.3);
+
+  .scenario-name {
+    display: block;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #e65100;
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .scenario-description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+}
+
+.alt-pros-cons {
+  display: grid;
+  gap: 0.75rem;
+
+  .label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .chip-list,
+  .chip-list-warn {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .chip-list li,
+  .chip-list-warn li {
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(76, 175, 80, 0.12);
+    font-size: 0.8rem;
+  }
+
+  .chip-list-warn li {
+    background: rgba(244, 67, 54, 0.12);
+    color: var(--error);
+  }
+}
+
+.costs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  dt {
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.result-footer {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border-top: 1px solid rgba(220, 220, 220, 0.5);
+  padding-top: 0.75rem;
+}

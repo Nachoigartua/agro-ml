@@ -318,6 +318,15 @@
   }
 }
 
+.clickable-row {
+  cursor: pointer;
+
+  &:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+}
+
 .window-cell {
   display: flex;
   flex-direction: column;
@@ -396,4 +405,37 @@
   .history-table {
     min-width: 100%;
   }
+}
+
+.detail-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.detail-modal {
+  position: relative;
+  max-width: min(960px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--surface, #ffffff);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: var(--shadow-lg, 0 20px 45px rgba(0, 0, 0, 0.2));
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
 }
