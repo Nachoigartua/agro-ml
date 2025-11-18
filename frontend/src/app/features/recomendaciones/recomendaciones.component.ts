@@ -7,9 +7,6 @@ import {
   BulkSiembraRecommendationRequest,
   BulkSiembraRecommendationResponse,
   BulkSiembraRecommendationItem,
-  RecommendationAlternative,
-  RecommendationWindow,
-  SiembraRecommendationResponse
 } from '@shared/models/recommendations.model';
 
 @Component({
@@ -73,62 +70,6 @@ export class RecomendacionesComponent implements OnInit {
       });
   }
 
-  getConfidenceClass(confidence: number): string {
-    if (confidence >= 0.8) {
-      return 'confidence-high';
-    }
-
-    if (confidence >= 0.6) {
-      return 'confidence-medium';
-    }
-
-    return 'confidence-low';
-  }
-
-  getConfidenceLabel(confidence: number): string {
-    if (confidence >= 0.8) {
-      return 'Alta';
-    }
-
-    if (confidence >= 0.6) {
-      return 'Media';
-    }
-
-    return 'Baja';
-  }
-
-  formatVentana(ventana?: RecommendationWindow['ventana']): string {
-    if (!ventana || ventana.length < 2) {
-      return '-';
-    }
-    const [inicio, fin] = ventana;
-    return `${this.formatDate(inicio)} - ${this.formatDate(fin)}`;
-  }
-
-  trackByAlternative(_: number, item: RecommendationAlternative): string {
-    return `${item.fecha}-${item.confianza}`;
-  }
-
-  formatDateTime(value: string): string {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    try {
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'America/Argentina/Buenos_Aires'
-      }).format(date);
-    } catch {
-      return date.toLocaleString('es-AR');
-    }
-  }
-
   private createForm(): FormGroup {
     return this.fb.group({
       loteIds: [[this.lotes[0].value], [Validators.required, Validators.minLength(1)]],
@@ -150,28 +91,6 @@ export class RecomendacionesComponent implements OnInit {
     };
   }
 
-  formatDate(value: string): string {
-    const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/;
-    if (ddmmyyyy.test(value)) {
-      const [dd, mm, yyyy] = value.split('-');
-      return `${dd}/${mm}/${yyyy}`;
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    try {
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        timeZone: 'America/Argentina/Buenos_Aires'
-      }).format(date);
-    } catch {
-      return date.toLocaleDateString('es-AR');
-    }
-  }
-
   getLoteLabel(loteId: string): string {
     const lote = this.lotes.find(l => l.value === loteId);
     const display = lote ? lote.label : loteId;
@@ -190,14 +109,4 @@ export class RecomendacionesComponent implements OnInit {
     return this.failedResults.length > 0;
   }
 
-  getDatosEntradaValue(response: SiembraRecommendationResponse | undefined, key: string): string {
-    if (!response?.datos_entrada) {
-      return '';
-    }
-    const value = response.datos_entrada[key];
-    if (value === undefined || value === null) {
-      return '';
-    }
-    return String(value);
-  }
 }
