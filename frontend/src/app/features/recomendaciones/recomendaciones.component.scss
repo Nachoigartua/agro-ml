@@ -207,8 +207,10 @@
 }
 
 .btn-primary {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.85rem 1.6rem;
   border-radius: 12px;
@@ -228,6 +230,7 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+
 }
 
 .btn-ghost {

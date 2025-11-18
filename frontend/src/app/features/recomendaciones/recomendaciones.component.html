@@ -70,10 +70,7 @@
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" [disabled]="isLoading || recommendationForm.invalid">
             <span *ngIf="!isLoading">Generar recomendacion</span>
-            <span *ngIf="isLoading">
-              <span class="loading"></span>
-              Procesando...
-            </span>
+            <span *ngIf="isLoading">Generando recomendacion...</span>
           </button>
         </div>
       </form>
