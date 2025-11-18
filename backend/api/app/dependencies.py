@@ -1,16 +1,40 @@
-﻿from fastapi import Depends, Request
+"""Dependency injection para FastAPI."""
+from __future__ import annotations
 
-from .clients.main_system_client import MainSystemAPIClient
-from .services.siembra_service import SiembraRecommendationService
+from typing import AsyncGenerator
+
+from fastapi import Depends, Request
+
+from .clients.mock_main_system_client import MockMainSystemAPIClient
+from .db.persistence import PersistenceContext
+from .services.siembra.recommendation_service import SiembraRecommendationService
 
 
-def get_main_system_client(request: Request) -> MainSystemAPIClient:
-    """Crea un cliente del sistema principal acoplado al request actual."""
-    return MainSystemAPIClient(base_url="http://sistema-principal/api", request=request)
+async def get_persistence_context() -> AsyncGenerator[PersistenceContext, None]:
+    """Proporciona el contexto de persistencia con repositorios.
+    
+    PersistenceContext crea su propia sesión internamente usando el session_factory.
+    """
+    async with PersistenceContext() as context:
+        yield context
 
 
-def get_siembra_service(
-    main_system_client: MainSystemAPIClient = Depends(get_main_system_client),
+async def get_main_system_client(request: Request) -> MockMainSystemAPIClient:
+    """Proporciona el cliente del sistema principal.
+    
+    TODO: Cambiar a MainSystemAPIClient cuando se implemente la API real.
+    Para cambiar entre mock y real, modificar el import y la clase retornada.
+    """
+    # Por ahora usamos el mock
+    return MockMainSystemAPIClient(request=request)
+
+
+async def get_siembra_service(
+    client: MockMainSystemAPIClient = Depends(get_main_system_client),
+    persistence: PersistenceContext = Depends(get_persistence_context),
 ) -> SiembraRecommendationService:
-    """Entrega una instancia del servicio de recomendaciones de siembra."""
-    return SiembraRecommendationService(main_system_client=main_system_client)
+    """Proporciona el servicio de recomendaciones de siembra."""
+    return SiembraRecommendationService(
+        main_system_client=client,
+        persistence_context=persistence,
+    )

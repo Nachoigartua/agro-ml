@@ -28,11 +28,10 @@
 
       <form [formGroup]="recommendationForm" (ngSubmit)="onSubmit()" class="form-grid">
         <div class="field-group">
-         <label for="loteId">Lote id</label>
-         <select id="loteId" formControlName="loteId">
-          <option value="lote-001">lote-001</option>
-          <option value="lote-002">lote-002</option>
-         </select>
+          <label for="loteId">Lote</label>
+          <select id="loteId" formControlName="loteId">
+            <option *ngFor="let lote of lotes" [value]="lote.value">{{ lote.label }}</option>
+          </select>
         </div>
 
         <div class="field-group">
@@ -53,9 +52,7 @@
         <div class="field-group">
           <label for="campana">Campaña</label>
           <select id="campana" formControlName="campana">
-            <option value="2025/2026">2025/2026</option>
-            <option value="2026/2027">2026/2027</option>
-            <option value="2027/2028">2027/2028</option>
+            <option *ngFor="let campana of campanas" [value]="campana">{{ campana }}</option>
           </select>
         </div>
 
@@ -87,44 +84,47 @@
         <header class="result-header">
           <div>
             <span class="pill">{{ result.tipo_recomendacion | titlecase }}</span>
-            <h2>Plan recomendado para el lote {{ result.lote_id }}</h2>
-            <p class="result-subtitle">Cultivo: {{ result.cultivo | titlecase }}</p>
-          </div>
-          <div class="confidence-badge" [ngClass]="getConfidenceClass(result.nivel_confianza)">
-            <span>{{ getConfidenceLabel(result.nivel_confianza) }}</span>
-            <strong>{{ result.nivel_confianza * 100 | number: '1.0-0' }}%</strong>
+            <h2>Plan recomendado para {{ getLoteLabel(result.lote_id) }}</h2>
+            <p class="result-subtitle">
+              Cultivo: {{ result.cultivo | titlecase }} | Campaña: {{ getDatosEntradaCampana() }}
+            </p>
           </div>
         </header>
 
         <div class="result-grid">
           <article class="result-card">
-            <h3>Ventana optima</h3>
+            <h3>Recomendación principal</h3>
             <div class="main-window">
               <span class="date">{{ formatDate(result.recomendacion_principal.fecha_optima) }}</span>
+              <span class="range-label">Ventana de siembra óptima:</span>
               <span class="range">{{ formatVentana(result.recomendacion_principal.ventana) }}</span>
-            </div>
-            <ul class="meta-list">
-              <li *ngIf="result.recomendacion_principal.justificacion">
-                <span class="label">Justificacion</span>
-                <p>{{ result.recomendacion_principal.justificacion }}</p>
-              </li>
-              <li *ngIf="result.recomendacion_principal.riesgos?.length">
-                <span class="label">Riesgos</span>
+              <span class="confidence-inline">Confianza: {{ result.recomendacion_principal.confianza * 100 | number: '1.0-0' }}%</span>
+              <div *ngIf="result.recomendacion_principal.riesgos?.length">
+                <span class="range-label">Riesgos</span>
                 <ul class="tag-list">
                   <li *ngFor="let riesgo of result.recomendacion_principal.riesgos">{{ riesgo }}</li>
                 </ul>
-              </li>
-            </ul>
+              </div>
+            </div>
           </article>
 
           <article class="result-card" *ngIf="result.alternativas?.length">
-            <h3>Alternativas</h3>
+            <h3>Alternativa</h3>
             <div class="alternative-grid">
               <div class="alternative-card" *ngFor="let alt of result.alternativas; trackBy: trackByAlternative">
-                <header class="alt-header">
-                  <span class="alt-date">{{ formatDate(alt.fecha) }}</span>
-                  <span class="alt-confidence-badge">{{ alt.confianza * 100 | number: '1.0-0' }}%</span>
-                </header>
+                <!-- Descripción del escenario climático -->
+                <div class="scenario-badge" *ngIf="alt.escenario_climatico">
+                  <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
+                  <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
+                </div>
+                
+                <div class="main-window">
+                  <span class="date">{{ formatDate(alt.fecha) }}</span>
+                  <span class="range-label">Ventana de siembra óptima:</span>
+                  <span class="range">{{ formatVentana(alt.ventana) }}</span>
+                  <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+                </div>
+                
                 <div class="alt-pros-cons">
                   <div *ngIf="alt.pros?.length">
                     <span class="label">Pros</span>
@@ -143,12 +143,7 @@
             </div>
           </article>
 
-          <article class="result-card" *ngIf="result.factores_considerados?.length">
-            <h3>Factores considerados</h3>
-            <ul class="factor-grid">
-              <li *ngFor="let factor of result.factores_considerados">{{ factor }}</li>
-            </ul>
-          </article>
+          
 
           <article class="result-card" *ngIf="result.costos_estimados && (result.costos_estimados | keyvalue).length">
             <h3>Costos estimados</h3>

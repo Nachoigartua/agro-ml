@@ -1,9 +1,14 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@environments/environment';
-import { HealthStatusResponse } from '@shared/models/recommendations.model';
+import {
+  HealthStatusResponse,
+  SiembraHistoryFilters,
+  SiembraHistoryResponse,
+} from '@shared/models/recommendations.model';
+import { LotesListResponse } from '@shared/models/lotes.model';
 
 @Injectable({
   providedIn: 'root'
@@ -16,6 +21,44 @@ export class ApiService {
   healthCheck(): Observable<HealthStatusResponse> {
     return this.http
       .get<HealthStatusResponse>(`${this.baseUrl}/health`)
+      .pipe(catchError(this.handleError));
+  }
+
+  getSiembraHistory(
+    filters: SiembraHistoryFilters = {}
+  ): Observable<SiembraHistoryResponse> {
+    let params = new HttpParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value === undefined || value === null) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        // Si hay múltiples lotes, no enviamos el filtro al backend (se filtra localmente)
+        if (value.length === 1 && value[0]) {
+          params = params.set(key, value[0]);
+        }
+        return;
+      }
+
+      const str = String(value).trim();
+      if (str.length > 0) {
+        params = params.set(key, str);
+      }
+    });
+
+    return this.http
+      .get<SiembraHistoryResponse>(
+        `${this.baseUrl}/api/v1/recomendaciones/siembra/historial`,
+        { params }
+      )
+      .pipe(catchError(this.handleError));
+  }
+
+  getLotes(): Observable<LotesListResponse> {
+    return this.http
+      .get<LotesListResponse>(`${this.baseUrl}/api/v1/lotes`)
       .pipe(catchError(this.handleError));
   }
 

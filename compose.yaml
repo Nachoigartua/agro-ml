@@ -6,10 +6,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/ml_agro
+      - DATABASE_URL=postgresql+asyncpg://postgres@postgres:5432/ml_agro
       - AGRO_ML_PROJECT_ROOT=/workspace
+    command: >
+      sh -c 'until alembic -c /workspace/backend/alembic.ini upgrade head; do echo Alembic failed, retrying in 5 seconds...; sleep 5; done && python /workspace/backend/machine-learning/train_siembra_model.py && uvicorn app.main:app --host 0.0.0.0 --port 8000'
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./backend/api:/app
       - ./backend:/workspace/backend
@@ -25,6 +28,9 @@ services:
       - backend
     environment:
       - CHOKIDAR_USEPOLLING=true
+    command: >
+      sh -c '( [ -d /app/node_modules ] && [ "$(ls -A /app/node_modules)" ] ) || npm ci;
+      npx ng serve --host 0.0.0.0 --port 4200'
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -33,12 +39,18 @@ services:
     image: postgis/postgis:13-3.1
     environment:
       - POSTGRES_DB=ml_agro
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ml_agro"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
 volumes:
   postgres_data:
-

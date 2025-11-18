@@ -9,10 +9,49 @@ from app.services.siembra_service import SiembraRecommendationService
 from app.dto.siembra import SiembraRequest
 
 
+class _DummyPrediccionRepository:
+    def __init__(self):
+        self.saved = []
+
+    async def save(self, **kwargs):
+        self.saved.append(kwargs)
+        return kwargs
+
+
+class _DummyPersistenceContext:
+    def __init__(self):
+        self.predicciones = _DummyPrediccionRepository()
+        self.modelos = None
+
+
 class _FakeMainSystemClient:
     async def get_lote_data(self, lote_id):
         # Minimal fake response; service currently doesn't use fields
         return {"id": str(lote_id)}
+
+
+class _StubPreprocessor:
+    _mapping = {"trigo": 150.0, "maiz": 200.0, "soja": 250.0}
+
+    def transform(self, df):
+        cultivo = df.iloc[0]["cultivo_anterior"]
+        value = self._mapping.get(cultivo, 180.0)
+        return [[value]]
+
+
+class _StubModel:
+    def predict(self, data):
+        return [float(data[0][0])]
+
+
+def _prime_service_with_stub_model(service: SiembraRecommendationService):
+    service._model_loaded = True
+    service._feature_order = ["cultivo_anterior"]
+    service._numeric_defaults = {}
+    service._categorical_defaults = {"cultivo_anterior": "trigo"}
+    service._model_metadata = {"model_version": "test"}
+    service._preprocessor = _StubPreprocessor()
+    service._model = _StubModel()
 
 
 def test_generate_recommendation_returns_expected_shape():
@@ -24,7 +63,11 @@ def test_generate_recommendation_returns_expected_shape():
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
     )
-    service = SiembraRecommendationService(main_system_client=_FakeMainSystemClient())
+    service = SiembraRecommendationService(
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
+    )
+    _prime_service_with_stub_model(service)
 
     # When: executing the async method
     response = asyncio.run(service.generate_recommendation(request))
@@ -36,7 +79,7 @@ def test_generate_recommendation_returns_expected_shape():
     assert response.cultivo == request.cultivo
     assert 0.0 <= response.nivel_confianza <= 1.0
     assert isinstance(response.alternativas, list)
-    assert isinstance(response.factores_considerados, list)
+    # Campo 'factores_considerados' eliminado del contrato de respuesta
 
 def test_generate_recommendation_propagates_503_from_client():
     # Given: a request and a failing client that raises HTTP 503
@@ -53,7 +96,11 @@ def test_generate_recommendation_propagates_503_from_client():
         campana="2024/2025",
         fecha_consulta=datetime.now(timezone.utc),
     )
-    service = SiembraRecommendationService(main_system_client=_FailingClient())
+    service = SiembraRecommendationService(
+        main_system_client=_FailingClient(),
+        persistence_context=_DummyPersistenceContext(),
+    )
+    _prime_service_with_stub_model(service)
 
     # When/Then: the exception propagates with status code 503
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
@@ -64,15 +111,17 @@ def test_generate_recommendation_propagates_503_from_client():
 def test_service_returns_expected_shape():
     # Usa el cliente mock real para validar shape con datos de lote-001
     request = SiembraRequest(
-        lote_id="lote-001",
-        cliente_id="cliente-001",
+        lote_id="c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
+        cliente_id=str(uuid4()),
         cultivo="trigo",
         campana="2025/2026",
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
@@ -87,18 +136,63 @@ def test_service_returns_expected_shape():
 def test_service_handles_other_lote():
     # Valida con lote-002 y cultivo distinto
     request = SiembraRequest(
-        lote_id="lote-002",
-        cliente_id="cliente-002",
+        lote_id="f6c1d3e9-4aa7-4b24-8b1c-65f06e3f4d30",
+        cliente_id=str(uuid4()),
         cultivo="soja",
         campana="2025/2026",
         fecha_consulta=datetime(2025, 10, 4),
     )
     service = SiembraRecommendationService(
-        main_system_client=MainSystemAPIClient(base_url="http://sistema-principal/api")
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
     )
+    _prime_service_with_stub_model(service)
 
     response = asyncio.run(service.generate_recommendation(request))
 
     assert response.lote_id == request.lote_id
     assert response.cultivo == request.cultivo
     assert isinstance(response.recomendacion_principal.fecha_optima, str)
+
+
+def test_service_varies_with_cultivo_for_same_lote():
+    request_base = dict(
+        lote_id="lote-001",
+        cliente_id="cliente-123",
+        campana="2025/2026",
+        fecha_consulta=datetime(2025, 10, 4),
+    )
+    service = SiembraRecommendationService(
+        main_system_client=_FakeMainSystemClient(),
+        persistence_context=_DummyPersistenceContext(),
+    )
+    _prime_service_with_stub_model(service)
+
+    soja = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="soja", **request_base)
+        )
+    )
+    maiz = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="maiz", **request_base)
+        )
+    )
+    trigo = asyncio.run(
+        service.generate_recommendation(
+            SiembraRequest(cultivo="trigo", **request_base)
+        )
+    )
+
+    fmt = "%d-%m-%Y"
+    fechas = {
+        "soja": datetime.strptime(soja.recomendacion_principal.fecha_optima, fmt),
+        "maiz": datetime.strptime(maiz.recomendacion_principal.fecha_optima, fmt),
+        "trigo": datetime.strptime(trigo.recomendacion_principal.fecha_optima, fmt),
+    }
+
+    assert len({v.toordinal() for v in fechas.values()}) == 3, "La fecha debe variar segun el cultivo objetivo"
+
+    # Comparar por dia del anio dentro de la campania
+    dia_del_ano = {clave: fecha.timetuple().tm_yday for clave, fecha in fechas.items()}
+    assert dia_del_ano["trigo"] < dia_del_ano["maiz"] < dia_del_ano["soja"]
