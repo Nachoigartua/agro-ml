@@ -32,6 +32,7 @@ export type CostBreakdown = Record<string, number>;
 export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unknown> {
   lote_id: string;
   tipo_recomendacion: string;
+  prediccion_id?: string;
   recomendacion_principal: TPrincipal;
   alternativas: TAlternative[];
   nivel_confianza: number;
@@ -77,6 +78,11 @@ export interface SiembraHistoryItem {
 export interface SiembraHistoryResponse {
   total: number;
   items: SiembraHistoryItem[];
+}
+
+export interface RecommendationPdfRequest {
+  recomendacion: SiembraRecommendationResponse;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SiembraHistoryFilters {

@@ -4,7 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '@environments/environment';
 import {
   BulkSiembraRecommendationRequest,
-  BulkSiembraRecommendationResponse
+  BulkSiembraRecommendationResponse,
+  RecommendationPdfRequest
 } from '@shared/models/recommendations.model';
 
 @Injectable({
@@ -19,5 +20,17 @@ export class RecommendationsService {
     payload: BulkSiembraRecommendationRequest
   ): Observable<BulkSiembraRecommendationResponse> {
     return this.http.post<BulkSiembraRecommendationResponse>(`${this.baseUrl}/siembra`, payload);
+  }
+
+  downloadRecommendationPdf(payload: RecommendationPdfRequest): Observable<Blob> {
+    return this.http.post<Blob>(`${this.baseUrl}/siembra/pdf`, payload, {
+      responseType: 'blob' as 'json'
+    });
+  }
+
+  downloadHistoryPdf(prediccionId: string): Observable<Blob> {
+    return this.http.get<Blob>(`${this.baseUrl}/siembra/${prediccionId}/pdf`, {
+      responseType: 'blob' as 'json'
+    });
   }
 }
