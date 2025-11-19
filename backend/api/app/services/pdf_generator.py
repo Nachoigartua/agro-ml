@@ -70,7 +70,7 @@ class RecommendationPDFGenerator:
 
         story.extend(self._build_header(recommendation, metadata))
         story.append(Spacer(1, 0.5 * cm))
-        story.extend(self._build_input_section(recommendation))
+        story.extend(self._build_input_section(recommendation, metadata))
         story.append(Spacer(1, 0.4 * cm))
         story.extend(self._build_recommendation_section(recommendation))
         story.append(Spacer(1, 0.4 * cm))
@@ -82,9 +82,6 @@ class RecommendationPDFGenerator:
         if costs:
             story.extend(costs)
             story.append(Spacer(1, 0.4 * cm))
-        meta_notes = self._build_metadata_section(recommendation)
-        if meta_notes:
-            story.extend(meta_notes)
 
         doc.build(story)
         return buffer.getvalue()
@@ -97,7 +94,6 @@ class RecommendationPDFGenerator:
         """Crea el encabezado del PDF."""
         lote_label = metadata.get("lote_label") or recommendation.get("lote_id", "Lote sin nombre")
         cultivo = str(recommendation.get("cultivo", "—")).title()
-        generated_at = self._format_datetime(recommendation.get("fecha_generacion"))
         requested_at = self._format_datetime(
             recommendation.get("datos_entrada", {}).get("fecha_consulta")
         )
@@ -109,45 +105,36 @@ class RecommendationPDFGenerator:
             self._styles["Heading4"],
         )
         caption = Paragraph(
-            f"Solicitada el {requested_at or '—'} · Generada el {generated_at or '—'}",
+            f"Solicitada el {requested_at or '—'}",
             self._styles["SmallLabel"],
         )
 
-        summary_data = [
-            ["Lote", lote_label],
-            ["Cultivo", cultivo],
-            ["Nivel de confianza", self._format_confidence(recommendation.get("nivel_confianza"))],
-        ]
-        summary_table = Table(summary_data, colWidths=[4 * cm, 10 * cm])
-        summary_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#263238")),
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
+        return [title, subtitle, caption, Spacer(1, 0.25 * cm), HRFlowable(width="100%")]
 
-        return [title, subtitle, caption, Spacer(1, 0.25 * cm), summary_table, HRFlowable(width="100%")]
-
-    def _build_input_section(self, recommendation: Mapping[str, Any]) -> list[Any]:
+    def _build_input_section(
+        self, recommendation: Mapping[str, Any], metadata: Mapping[str, Any]
+    ) -> list[Any]:
         datos = recommendation.get("datos_entrada") or {}
         if not isinstance(datos, Mapping):
             datos = {}
+        lote_label = metadata.get("lote_label") or recommendation.get("lote_id", "Lote sin nombre")
+        cultivo_val = datos.get("cultivo") or recommendation.get("cultivo")
+        cultivo = self._capitalise_first(cultivo_val) if cultivo_val else ""
+        if not cultivo:
+            cultivo = "—"
 
         rows = [
-            ("Cliente", datos.get("cliente_id", "—")),
-            ("Campaña", datos.get("campana", "—")),
+            ("Nombre del lote", lote_label),
+            ("Cultivo", cultivo),
+            ("Campaña", datos.get("campana") or "—"),
             ("Fecha de consulta", self._format_datetime(datos.get("fecha_consulta")) or "—"),
         ]
         additional_entries = [
             (key.replace("_", " ").title(), value)
             for key, value in datos.items()
-            if key not in {"cliente_id", "campana", "fecha_consulta"} and value not in (None, "")
+            if key
+            not in {"cliente_id", "campana", "fecha_consulta", "lote_id", "cultivo"}
+            and value not in (None, "")
         ]
         additional_entries.sort(key=lambda pair: pair[0])
         rows.extend(additional_entries)
@@ -192,39 +179,33 @@ class RecommendationPDFGenerator:
         if not isinstance(alternativas, Sequence) or not alternativas:
             return []
 
-        header = Paragraph("Escenarios alternativos", self._styles["SectionTitle"])
-        rows = [["Fecha", "Ventana", "Confianza", "Escenario"]]
-        for alternativa in alternativas:
+        flowables: list[Any] = []
+        
+        for idx, alternativa in enumerate(alternativas):
+            if idx > 0:
+                flowables.append(Spacer(1, 0.3 * cm))
+            
             ventana = alternativa.get("ventana") or []
             ventana_txt = " · ".join(filter(None, [self._format_date(v) for v in ventana]))
             scenario = alternativa.get("escenario_climatico", {}) or {}
             scen_txt = scenario.get("nombre") or scenario.get("descripcion") or "—"
-            rows.append(
-                [
-                    self._format_date(alternativa.get("fecha")) or "—",
-                    ventana_txt or "—",
-                    self._format_confidence(alternativa.get("confianza")),
-                    scen_txt,
-                ]
-            )
+            confidence = self._format_confidence(alternativa.get("confianza"))
+            
+            # Crear título con escenario
+            title_text = f"Recomendación alternativa: {scen_txt}"
+            flowables.append(Paragraph(title_text, self._styles["SectionTitle"]))
+            
+            # Crear tabla 3x2 igual que la recomendación principal
+            rows = [
+                ("Fecha óptima", self._format_date(alternativa.get("fecha")) or "—"),
+                ("Ventana recomendada", ventana_txt or "—"),
+                ("Confianza", confidence),
+            ]
+            table = Table(rows, colWidths=[5 * cm, 9 * cm])
+            table.setStyle(self._table_style())
+            flowables.append(table)
 
-        table = Table(rows, colWidths=[3 * cm, 4 * cm, 3 * cm, 4 * cm])
-        table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e3f2fd")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0d47a1")),
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 9),
-                    ("FONTSIZE", (0, 1), (-1, -1), 8.5),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("BOX", (0, 0), (-1, -1), 0.25, colors.grey),
-                ]
-            )
-        )
-
-        return [header, table]
+        return flowables
 
     def _build_cost_section(self, recommendation: Mapping[str, Any]) -> list[Any]:
         costos = recommendation.get("costos_estimados") or {}
@@ -306,10 +287,21 @@ class RecommendationPDFGenerator:
         if not value:
             return None
         try:
+            from zoneinfo import ZoneInfo
             parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except (TypeError, ValueError):
+            # Convertir a zona horaria de Argentina
+            argentina_tz = ZoneInfo("America/Argentina/Buenos_Aires")
+            parsed_local = parsed.astimezone(argentina_tz)
+            return parsed_local.strftime("%d/%m/%Y %H:%M")
+        except (TypeError, ValueError, Exception):
             return str(value)
-        return parsed.strftime("%d/%m/%Y %H:%M")
+
+    @staticmethod
+    def _capitalise_first(value: Any) -> str:
+        text = str(value).strip()
+        if not text:
+            return ""
+        return f"{text[:1].upper()}{text[1:]}"
 
 
 def normalise_pdf_payload(

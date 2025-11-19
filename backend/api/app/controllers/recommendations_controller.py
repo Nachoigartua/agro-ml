@@ -137,11 +137,16 @@ async def descargar_pdf_recomendacion(
     service: SiembraRecommendationService = Depends(get_siembra_service),
     pdf_generator: RecommendationPDFGenerator = Depends(get_pdf_generator),
 ) -> StreamingResponse:
-    """Descarga el PDF asociado a una recomendaci��n previamente generada."""
+    """Descarga el PDF asociado a una recomendación previamente generada."""
     try:
         history_entry = await service.get_history_entry(prediccion_id=str(prediccion_id))
         recommendation_data = _history_item_to_recommendation(history_entry)
-        payload = normalise_pdf_payload(recommendation=recommendation_data, metadata={})
+        
+        # Obtener nombre del lote
+        lote_label = await _get_lote_label(service, str(history_entry.lote_id))
+        metadata = {"lote_label": lote_label} if lote_label else {}
+        
+        payload = normalise_pdf_payload(recommendation=recommendation_data, metadata=metadata)
         pdf_bytes = pdf_generator.build_pdf(payload)
     except ValueError as exc:
         raise HTTPException(
@@ -215,17 +220,29 @@ def _safe_filename_component(value: str) -> str:
     return "".join(char for char in value if char.isalnum() or char in ("-", "_")).lower() or "archivo"
 
 
+async def _get_lote_label(service: SiembraRecommendationService, lote_id: str) -> Optional[str]:
+    """Obtiene el nombre del lote desde el sistema principal.
+    
+    Args:
+        service: Servicio de recomendaciones
+        lote_id: ID del lote
+        
+    Returns:
+        Nombre del lote o None si no se puede obtener
+    """
+    try:
+        lote_data = await service.main_system_client.get_lote_data(lote_id)
+        return lote_data.get("nombre") if lote_data else None
+    except Exception as exc:
+        logger.warning(
+            "Error obteniendo nombre del lote",
+            extra={"lote_id": lote_id, "error": str(exc)}
+        )
+        return None
+
+
 def _history_item_to_recommendation(item: SiembraHistoryItem) -> Dict[str, Any]:
     datos_entrada = dict(item.datos_entrada or {})
-    metadata = {
-        "campana": item.campana or datos_entrada.get("campana"),
-        "modelo_version": item.modelo_version,
-        "ventana_validez": [
-            item.fecha_validez_desde.isoformat() if item.fecha_validez_desde else None,
-            item.fecha_validez_hasta.isoformat() if item.fecha_validez_hasta else None,
-        ],
-    }
-    metadata = {k: v for k, v in metadata.items() if v not in (None, "", [])}
     fecha_generacion = item.fecha_creacion or datetime.now(timezone.utc)
 
     return {
@@ -239,5 +256,4 @@ def _history_item_to_recommendation(item: SiembraHistoryItem) -> Dict[str, Any]:
         "fecha_generacion": fecha_generacion.isoformat(),
         "cultivo": item.cultivo,
         "datos_entrada": datos_entrada,
-        "metadata": metadata,
     }
