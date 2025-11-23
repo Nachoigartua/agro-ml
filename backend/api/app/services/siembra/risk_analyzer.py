@@ -20,7 +20,7 @@ class SiembraRiskAnalyzer:
     _DEFAULT_WINDOW_YEARS = 10
     _DEFAULT_TIMEOUT = 30.0
     _DEFAULT_HALF_WINDOW_DAYS = 2
-    _DEFAULT_RISK_MESSAGE = "No se detectaron riesgos"
+    _DEFAULT_RISK_MESSAGE = "⚠️ No fue posible evaluar riesgos por falta de datos climaticos."
     _NO_COORDINATES_MESSAGE = "⚠️ El lote no tiene coordenadas geograficas registradas."
     _NASA_API_PARAMETERS = "T2M_MIN,T2M_MAX,PRECTOTCORR,WS10M_MAX,ALLSKY_SFC_SW_DWN,RH2M"
 
@@ -264,10 +264,6 @@ class SiembraRiskAnalyzer:
             ventana=ventana,
         )
 
-        # Si no hay riesgos (severidad ok), retornar lista vacía
-        if principal.get("severidad") == "ok":
-            return []
-        
         detalles: List[Dict[str, str]] = [principal]
         if principal.get("severidad") != "alta":
             return detalles
@@ -371,8 +367,7 @@ class SiembraRiskAnalyzer:
             )
             return {"severidad": "alta", "descripcion": descripcion}, contexto
 
-        # Si no hay riesgos, retornar lista vacía
-        return {"severidad": "ok", "descripcion": ""}, contexto
+        return {"severidad": "apto", "descripcion": "Sin riesgos detectados."}, contexto
 
     @staticmethod
     def _format_risk_entry(riesgo: Dict[str, str]) -> str:
