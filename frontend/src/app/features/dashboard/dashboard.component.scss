@@ -227,6 +227,23 @@
   box-shadow: var(--shadow-md);
 }
 
+.inline-alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: rgba(255, 193, 7, 0.15);
+  color: #795548;
+
+  .btn-secondary {
+    border-color: transparent;
+    background: rgba(121, 85, 72, 0.15);
+    color: #795548;
+  }
+}
+
 .link-button {
   border: none;
   background: none;
@@ -338,7 +355,25 @@
 
 .range-separator {
   color: var(--text-secondary);
-  display: none;
+  display: inline-block;
+  margin: 0 0.35rem;
+}
+
+.history-table th:last-child,
+.history-table td:last-child {
+  text-align: right;
+}
+
+.actions-cell {
+  min-width: 150px;
+}
+
+.actions-cell button + button {
+  margin-left: 0.5rem;
+}
+
+.pdf-button {
+  min-width: 140px;
 }
 
 .capitalize {

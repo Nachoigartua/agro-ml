@@ -88,6 +88,12 @@
           </div>
           <button class="btn btn-secondary" type="button" (click)="loadDashboardData()">Actualizar</button>
         </header>
+        <div class="alert inline-alert" *ngIf="pdfError">
+          <div>
+            <strong>{{ pdfError }}</strong>
+          </div>
+          <button class="btn btn-secondary" type="button" (click)="pdfError = null">Entendido</button>
+        </div>
 
         <ng-container *ngIf="historyItems.length; else noResults">
           <div class="table-wrapper">
@@ -101,19 +107,16 @@
                   <th>Confianza</th>
                   <th>Fecha óptima</th>
                   <th>Ventana recomendada</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  *ngFor="let item of historyItems"
-                  class="clickable-row"
-                  (click)="openDetail(item)"
-                  (keyup.enter)="openDetail(item)"
-                  tabindex="0">
-                  <td>{{ item.fecha_creacion ? (item.fecha_creacion | date:'short') : '—' }}</td>
+                  *ngFor="let item of historyItems">
+                  <td>{{ item.fecha_creacion ? (item.fecha_creacion | date:'short') : '-' }}</td>
                   <td>{{ getLoteLabel(item.lote_id) }}</td>
-                   <td class="capitalize">{{ item.cultivo || '—' }}</td>
-              <td>{{ item.campana || '—' }}</td>
+                  <td class="capitalize">{{ item.cultivo || '-' }}</td>
+                  <td>{{ item.campana || '-' }}</td>
                   <td>
                     <ng-container *ngIf="resolveConfidence(item) as confidence; else dash">
                       {{ confidence | percent:'1.0-0' }}
@@ -123,9 +126,25 @@
                   <td class="window-cell">
                     <ng-container *ngIf="item.recomendacion_principal.ventana.length === 2; else dash">
                       <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[0]) }}</span>
-                      <span class="range-separator">→</span>
+                      <span class="range-separator">-></span>
                       <span>{{ formatRecommendationDate(item.recomendacion_principal.ventana[1]) }}</span>
                     </ng-container>
+                  </td>
+                  <td class="actions-cell">
+                    <button
+                      type="button"
+                      class="btn btn-tertiary detail-button"
+                      (click)="openDetail(item)">
+                      Ver detalle
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary pdf-button"
+                      (click)="onDownloadHistoryPdf(item)"
+                      [disabled]="isHistoryPdfLoading(item)">
+                      <span *ngIf="!isHistoryPdfLoading(item)">Generar PDF</span>
+                      <span *ngIf="isHistoryPdfLoading(item)">Generando...</span>
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -137,7 +156,7 @@
           <ng-container *ngIf="!hasServerResults; else noMatches">
             <div class="empty-state">
               <h3>No se registran predicciones aún</h3>
-          <p>Genera una recomendación desde la sección de recomendaciones para comenzar a ver el historial aquí.</p>
+              <p>Genera una recomendación desde la sección de recomendaciones para comenzar a ver el historial aquí.</p>
             </div>
           </ng-container>
         </ng-template>
@@ -145,11 +164,11 @@
         <ng-template #noMatches>
           <div class="empty-state">
             <h3>Sin coincidencias</h3>
-             <p>Ajusta los filtros o limpia la búsqueda para ver resultados.</p>
+            <p>Ajusta los filtros o limpia la b&uacute;squeda para ver resultados.</p>
           </div>
         </ng-template>
 
-        <ng-template #dash>—</ng-template>
+        <ng-template #dash>-</ng-template>
       </section>
     </div>
     <aside class="right-col">

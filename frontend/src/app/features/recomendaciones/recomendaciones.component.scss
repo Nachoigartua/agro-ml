@@ -315,6 +315,16 @@
   .pill {
     margin-bottom: 0.5rem;
   }
+
+  .result-actions {
+    margin-left: auto;
+
+    .btn {
+      min-width: 140px;
+      display: inline-flex;
+      justify-content: center;
+    }
+  }
 }
 
 .result-grid {

@@ -85,6 +85,13 @@
       <div class="alert alert-error" *ngIf="error && !isLoading">
         <strong>Error:</strong> {{ error }}
       </div>
+      <div class="alert alert-error" *ngIf="pdfError && bulkResult">
+        <div>
+          <strong>No pudimos generar el PDF.</strong>
+          <p>{{ pdfError }}</p>
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="pdfError = null">Entendido</button>
+      </div>
 
       <ng-container *ngIf="bulkResult && !isLoading">
         <header class="result-header">
@@ -100,10 +107,105 @@
         <div class="result-list">
           <div class="result-entry" *ngFor="let item of bulkResult.resultados">
             <ng-container *ngIf="item.success && item.response as response; else loteError">
-              <app-siembra-recommendation-detail
-                [recommendation]="response"
-                [loteLabel]="getLoteLabel(item.lote_id)">
-              </app-siembra-recommendation-detail>
+              <header class="result-header">
+                <div>
+                  <span class="pill">{{ getLoteLabel(item.lote_id) }}</span>
+                  <h3>Recomendaciones de siembra</h3>
+                  <p class="result-subtitle">
+                    Cultivo: {{ response.cultivo | titlecase }} |
+                    Campaña: {{ getDatosEntradaValue(response, 'campana') }}
+                  </p>
+                </div>
+                <div class="result-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    (click)="onDownloadResultPdf(response, getLoteLabel(item.lote_id))"
+                    [disabled]="isRecommendationDownloading(response)">
+                    <span *ngIf="!isRecommendationDownloading(response)">Generar PDF</span>
+                    <span *ngIf="isRecommendationDownloading(response)">Generando...</span>
+                  </button>
+                </div>
+              </header>
+
+              <div class="result-grid">
+                <article class="result-card">
+                  <h4>Recomendación principal</h4>
+                  <div class="main-window">
+                    <span class="date">{{ formatDate(response.recomendacion_principal.fecha_optima) }}</span>
+                    <span class="range-label">Ventana de siembra óptima:</span>
+                    <span class="range">{{ formatVentana(response.recomendacion_principal.ventana) }}</span>
+                    <span class="confidence-inline">
+                      Confianza:
+                      {{ response.recomendacion_principal.confianza * 100 | number: '1.0-0' }}%
+                    </span>
+                    <div *ngIf="response.recomendacion_principal.riesgos?.length" class="risk-list">
+                      <span class="range-label">Riesgos</span>
+                      <div class="risk-badges">
+                        <span class="risk-badge" *ngFor="let riesgo of response.recomendacion_principal.riesgos">
+                          {{ riesgo }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="result-card" *ngIf="response.alternativas?.length">
+                  <h4>Recomendación alternativa</h4>
+                  <div class="alternative-grid">
+                    <div class="alternative-card" *ngFor="let alt of response.alternativas; trackBy: trackByAlternative">
+                      <div class="scenario-badge" *ngIf="alt.escenario_climatico">
+                        <span class="scenario-name">{{ alt.escenario_climatico.nombre }}</span>
+                        <p class="scenario-description">{{ alt.escenario_climatico.descripcion }}</p>
+                      </div>
+
+                      <div class="main-window">
+                        <span class="date">{{ formatDate(alt.fecha) }}</span>
+                        <span class="range-label">Ventana de siembra óptima:</span>
+                        <span class="range">{{ formatVentana(alt.ventana) }}</span>
+                        <span class="confidence-inline">Confianza: {{ alt.confianza * 100 | number: '1.0-0' }}%</span>
+                      </div>
+
+                      <div class="alt-pros-cons">
+                        <div *ngIf="alt.pros?.length">
+                          <span class="label">Pros</span>
+                          <ul class="chip-list">
+                            <li *ngFor="let it of alt.pros">{{ it }}</li>
+                          </ul>
+                        </div>
+                        <div *ngIf="alt.contras?.length">
+                          <span class="label">Contras</span>
+                          <ul class="chip-list chip-list-warn">
+                            <li *ngFor="let it of alt.contras">{{ it }}</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article
+                  class="result-card"
+                  *ngIf="response.costos_estimados && (response.costos_estimados | keyvalue).length"
+                >
+                  <h4>Costos estimados</h4>
+                  <dl class="costs-grid">
+                    <div *ngFor="let costo of response.costos_estimados | keyvalue">
+                      <dt>{{ costo.key | titlecase }}</dt>
+                      <dd>{{ costo.value | currency: 'USD':'symbol':'1.0-0' }}</dd>
+                    </div>
+                  </dl>
+                </article>
+
+                <article class="result-card" *ngIf="response.metadata">
+                  <h4>Metadatos</h4>
+                  <pre>{{ response.metadata | json }}</pre>
+                </article>
+              </div>
+
+              <footer class="result-footer">
+                <span>Generado el {{ formatDateTime(response.fecha_generacion) }}</span>
+              </footer>
             </ng-container>
 
             <ng-template #loteError>

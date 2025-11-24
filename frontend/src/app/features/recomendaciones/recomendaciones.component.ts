@@ -7,6 +7,10 @@ import {
   BulkSiembraRecommendationRequest,
   BulkSiembraRecommendationResponse,
   BulkSiembraRecommendationItem,
+  RecommendationAlternative,
+  RecommendationWindow,
+  RecommendationPdfRequest,
+  SiembraRecommendationResponse
 } from '@shared/models/recommendations.model';
 
 @Component({
@@ -21,6 +25,8 @@ export class RecomendacionesComponent implements OnInit {
   isLoading = false;
   bulkResult: BulkSiembraRecommendationResponse | null = null;
   error: string | null = null;
+  pdfError: string | null = null;
+  private readonly downloadingRecommendations = new Set<string>();
 
   // Debe coincidir con los permitidos por el backend
   readonly cultivos = [...CULTIVOS_DISPONIBLES];
@@ -55,6 +61,7 @@ export class RecomendacionesComponent implements OnInit {
     const payload = this.buildRequestPayload();
     this.isLoading = true;
     this.error = null;
+    this.pdfError = null;
     this.bulkResult = null;
 
     this.recommendationsService
@@ -68,6 +75,110 @@ export class RecomendacionesComponent implements OnInit {
           this.error = err?.message ?? 'No se pudo generar la recomendacion';
         }
       });
+  }
+
+  onDownloadResultPdf(response: SiembraRecommendationResponse, loteLabel: string): void {
+    const key = this.getRecommendationDownloadKey(response);
+    if (this.downloadingRecommendations.has(key)) {
+      return;
+    }
+    this.pdfError = null;
+    this.downloadingRecommendations.add(key);
+
+    const payload: RecommendationPdfRequest = {
+      recomendacion: response,
+      metadata: {
+        lote_label: loteLabel
+      }
+    };
+
+    this.recommendationsService.downloadRecommendationPdf(payload).pipe(
+      finalize(() => this.downloadingRecommendations.delete(key))
+    ).subscribe({
+      next: (blob) => {
+        const filename = this.buildResultFilename(response);
+        this.triggerFileDownload(blob, filename);
+      },
+      error: () => {
+        this.pdfError = 'No pudimos generar el PDF. Intenta nuevamente.';
+      }
+    });
+  }
+
+  getConfidenceClass(confidence: number): string {
+    if (confidence >= 0.8) {
+      return 'confidence-high';
+    }
+
+    if (confidence >= 0.6) {
+      return 'confidence-medium';
+    }
+
+    return 'confidence-low';
+  }
+
+  getConfidenceLabel(confidence: number): string {
+    if (confidence >= 0.8) {
+      return 'Alta';
+    }
+
+    if (confidence >= 0.6) {
+      return 'Media';
+    }
+
+    return 'Baja';
+  }
+
+  formatVentana(ventana?: RecommendationWindow['ventana']): string {
+    if (!ventana || ventana.length < 2) {
+      return '-';
+    }
+    const [inicio, fin] = ventana;
+    return `${this.formatDate(inicio)} - ${this.formatDate(fin)}`;
+  }
+
+  formatDate(value?: string): string {
+    if (!value) {
+      return '-';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    try {
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString('es-AR');
+    }
+  }
+
+  trackByAlternative(_: number, item: RecommendationAlternative): string {
+    return `${item.fecha}-${item.confianza}`;
+  }
+
+  formatDateTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    try {
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'America/Argentina/Buenos_Aires'
+      }).format(date);
+    } catch {
+      return date.toLocaleString('es-AR');
+    }
   }
 
   private createForm(): FormGroup {
@@ -109,4 +220,45 @@ export class RecomendacionesComponent implements OnInit {
     return this.failedResults.length > 0;
   }
 
+  getDatosEntradaValue(response: SiembraRecommendationResponse | undefined, key: string): string {
+    if (!response?.datos_entrada) {
+      return '';
+    }
+    const value = response.datos_entrada[key];
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value);
+  }
+
+  isRecommendationDownloading(response: SiembraRecommendationResponse): boolean {
+    return this.downloadingRecommendations.has(this.getRecommendationDownloadKey(response));
+  }
+
+  private getRecommendationDownloadKey(response: SiembraRecommendationResponse): string {
+    return response.prediccion_id ?? `${response.lote_id}-${response.fecha_generacion}`;
+  }
+
+  private buildResultFilename(response: SiembraRecommendationResponse): string {
+    const lote = this.sanitizeForFile(response.lote_id);
+    const campanaValue = response.datos_entrada?.['campana'] as string | undefined;
+    const fecha = this.sanitizeForFile(campanaValue ?? response.fecha_generacion);
+    return `recomendacion-${lote}-${fecha}.pdf`;
+  }
+
+  private triggerFileDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private sanitizeForFile(value?: string): string {
+    if (!value) {
+      return 'informe';
+    }
+    return value.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  }
 }
