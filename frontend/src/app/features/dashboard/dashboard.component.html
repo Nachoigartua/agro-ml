@@ -111,7 +111,8 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let item of historyItems">
+                <tr
+                  *ngFor="let item of historyItems">
                   <td>{{ item.fecha_creacion ? (item.fecha_creacion | date:'short') : '-' }}</td>
                   <td>{{ getLoteLabel(item.lote_id) }}</td>
                   <td class="capitalize">{{ item.cultivo || '-' }}</td>
@@ -130,6 +131,12 @@
                     </ng-container>
                   </td>
                   <td class="actions-cell">
+                    <button
+                      type="button"
+                      class="btn btn-tertiary detail-button"
+                      (click)="openDetail(item)">
+                      Ver detalle
+                    </button>
                     <button
                       type="button"
                       class="btn btn-secondary pdf-button"
@@ -169,4 +176,14 @@
       <app-mini-map (selectedLotesChange)="onSelectedLotesChange($event)"></app-mini-map>
     </aside>
   </section>
+</div>
+
+<div class="detail-modal-backdrop" *ngIf="detailRecommendation" (click)="closeDetail()">
+  <div class="detail-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button class="modal-close" type="button" aria-label="Cerrar" (click)="closeDetail()">×</button>
+    <app-siembra-recommendation-detail
+      [recommendation]="detailRecommendation"
+      [loteLabel]="detailLoteLabel">
+    </app-siembra-recommendation-detail>
+  </div>
 </div>

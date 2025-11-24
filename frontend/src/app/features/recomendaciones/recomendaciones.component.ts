@@ -137,6 +137,26 @@ export class RecomendacionesComponent implements OnInit {
     return `${this.formatDate(inicio)} - ${this.formatDate(fin)}`;
   }
 
+  formatDate(value?: string): string {
+    if (!value) {
+      return '-';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    try {
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      }).format(date);
+    } catch {
+      return date.toLocaleDateString('es-AR');
+    }
+  }
+
   trackByAlternative(_: number, item: RecommendationAlternative): string {
     return `${item.fecha}-${item.confianza}`;
   }
@@ -180,28 +200,6 @@ export class RecomendacionesComponent implements OnInit {
       fecha_consulta: fecha.toISOString(),
       cliente_id: '123e4567-e89b-12d3-a456-426614174001'
     };
-  }
-
-  formatDate(value: string): string {
-    const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/;
-    if (ddmmyyyy.test(value)) {
-      const [dd, mm, yyyy] = value.split('-');
-      return `${dd}/${mm}/${yyyy}`;
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    try {
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        timeZone: 'America/Argentina/Buenos_Aires'
-      }).format(date);
-    } catch {
-      return date.toLocaleDateString('es-AR');
-    }
   }
 
   getLoteLabel(loteId: string): string {

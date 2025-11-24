@@ -5,8 +5,11 @@ import { debounceTime } from 'rxjs/operators';
 import { ApiService } from '@core/services/api.service';
 import { RecommendationsService } from '@core/services/recommendations.service';
 import {
+  RecommendationAlternative,
+  RecommendationWindow,
   SiembraHistoryFilters,
   SiembraHistoryItem,
+  SiembraRecommendationResponse,
 } from '@shared/models/recommendations.model';
 import {
   CAMPANAS_DISPONIBLES,
@@ -45,6 +48,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly loteLabelMap = new Map<string, string>();
   private readonly selectedLotes = new Set<string>();
   private readonly downloadingHistoryIds = new Set<string>();
+  detailRecommendation: SiembraRecommendationResponse | null = null;
+  detailLoteLabel = '';
 
   constructor(
     private readonly apiService: ApiService,
@@ -473,5 +478,44 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return 'documento';
     }
     return value.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  }
+
+    openDetail(item: SiembraHistoryItem): void {
+    this.detailRecommendation = this.mapHistoryItemToRecommendation(item);
+    this.detailLoteLabel = this.getLoteLabel(item.lote_id);
+  }
+
+  closeDetail(): void {
+    this.detailRecommendation = null;
+    this.detailLoteLabel = '';
+  }
+
+  private mapHistoryItemToRecommendation(item: SiembraHistoryItem): SiembraRecommendationResponse {
+    const principal = item.recomendacion_principal as RecommendationWindow;
+    const alternativas = (item.alternativas ?? []) as RecommendationAlternative[];
+    const datosEntrada = item.datos_entrada ?? {};
+    const nivelConfianza =
+      typeof item.nivel_confianza === 'number'
+        ? item.nivel_confianza
+        : (typeof principal?.confianza === 'number' ? principal.confianza : 0);
+
+    const fechaGeneracion =
+      item.fecha_creacion ??
+      (typeof datosEntrada['fecha_generacion'] === 'string' ? (datosEntrada['fecha_generacion'] as string) : new Date().toISOString());
+
+    const cultivo = item.cultivo ?? (datosEntrada['cultivo'] as string) ?? '';
+
+    return {
+      lote_id: item.lote_id,
+      tipo_recomendacion: 'siembra',
+      recomendacion_principal: principal,
+      alternativas,
+      nivel_confianza: nivelConfianza,
+      costos_estimados: undefined,
+      fecha_generacion: fechaGeneracion,
+      cultivo,
+      datos_entrada: datosEntrada,
+      metadata: item.modelo_version ? { modelo_version: item.modelo_version } : undefined,
+    };
   }
 }

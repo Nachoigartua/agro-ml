@@ -16,8 +16,9 @@ def _auth_headers() -> dict[str, str]:
 
 
 def test_siembra_recommendation_happy_path(client: TestClient):
+    lote_id = "c3f2f1ab-ca2e-4f8b-9819-377102c4d889"
     payload = {
-        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
+        "lote_ids": [lote_id],
         "cliente_id": str(uuid4()),
         "cultivo": "trigo",
         "campana": "2024/2025",
@@ -33,15 +34,22 @@ def test_siembra_recommendation_happy_path(client: TestClient):
     assert response.status_code == 200
     data = response.json()
 
-    # Validaciones de campos de alto nivel
-    assert data["lote_id"] == payload["lote_id"]
-    assert data["tipo_recomendacion"] == "siembra"
-    assert data["cultivo"] == payload["cultivo"]
+    assert data["total"] == 1
+    assert isinstance(data["resultados"], list)
+    assert len(data["resultados"]) == 1
 
-    assert data.get("prediccion_id")
+    first_result = data["resultados"][0]
+    assert first_result["lote_id"] == lote_id
+    assert first_result["success"] is True
+    assert "response" in first_result
 
-    # Validaciones de la recomendacion principal (nuevo esquema)
-    rp = data.get("recomendacion_principal", {})
+    respuesta = first_result["response"]
+    assert respuesta["lote_id"] == lote_id
+    assert respuesta["tipo_recomendacion"] == "siembra"
+    assert respuesta["cultivo"] == payload["cultivo"]
+    assert respuesta.get("prediccion_id")
+
+    rp = respuesta.get("recomendacion_principal", {})
     assert isinstance(rp, dict)
     assert "fecha_optima" in rp
     assert "ventana" in rp
@@ -49,7 +57,6 @@ def test_siembra_recommendation_happy_path(client: TestClient):
 
     from datetime import datetime as _dt
 
-    # La fecha optima debe pertenecer al año siguiente al de la consulta
     fecha_optima = rp["fecha_optima"]
     dt = _dt.strptime(fecha_optima, "%d-%m-%Y")
     assert dt.year == 2025  # fecha consulta 2024 -> recomienda 2025
@@ -57,7 +64,7 @@ def test_siembra_recommendation_happy_path(client: TestClient):
 
 def test_siembra_recommendation_invalid_body_returns_422(client: TestClient):
     payload = {
-        "lote_id": "c3f2f1ab-ca2e-4f8b-9819-377102c4d889",
+        "lote_ids": ["c3f2f1ab-ca2e-4f8b-9819-377102c4d889"],
         "cliente_id": str(uuid4()),
         "cultivo": "cultivo_invalido",
         "campana": "2024/2025",
