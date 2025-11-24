@@ -9,6 +9,7 @@ import {
   BulkSiembraRecommendationItem,
   RecommendationAlternative,
   RecommendationWindow,
+  RecommendationPdfRequest,
   SiembraRecommendationResponse
 } from '@shared/models/recommendations.model';
 
@@ -24,6 +25,8 @@ export class RecomendacionesComponent implements OnInit {
   isLoading = false;
   bulkResult: BulkSiembraRecommendationResponse | null = null;
   error: string | null = null;
+  pdfError: string | null = null;
+  private readonly downloadingRecommendations = new Set<string>();
 
   // Debe coincidir con los permitidos por el backend
   readonly cultivos = [...CULTIVOS_DISPONIBLES];
@@ -58,6 +61,7 @@ export class RecomendacionesComponent implements OnInit {
     const payload = this.buildRequestPayload();
     this.isLoading = true;
     this.error = null;
+    this.pdfError = null;
     this.bulkResult = null;
 
     this.recommendationsService
@@ -71,6 +75,34 @@ export class RecomendacionesComponent implements OnInit {
           this.error = err?.message ?? 'No se pudo generar la recomendacion';
         }
       });
+  }
+
+  onDownloadResultPdf(response: SiembraRecommendationResponse, loteLabel: string): void {
+    const key = this.getRecommendationDownloadKey(response);
+    if (this.downloadingRecommendations.has(key)) {
+      return;
+    }
+    this.pdfError = null;
+    this.downloadingRecommendations.add(key);
+
+    const payload: RecommendationPdfRequest = {
+      recomendacion: response,
+      metadata: {
+        lote_label: loteLabel
+      }
+    };
+
+    this.recommendationsService.downloadRecommendationPdf(payload).pipe(
+      finalize(() => this.downloadingRecommendations.delete(key))
+    ).subscribe({
+      next: (blob) => {
+        const filename = this.buildResultFilename(response);
+        this.triggerFileDownload(blob, filename);
+      },
+      error: () => {
+        this.pdfError = 'No pudimos generar el PDF. Intenta nuevamente.';
+      }
+    });
   }
 
   getConfidenceClass(confidence: number): string {
@@ -199,5 +231,36 @@ export class RecomendacionesComponent implements OnInit {
       return '';
     }
     return String(value);
+  }
+
+  isRecommendationDownloading(response: SiembraRecommendationResponse): boolean {
+    return this.downloadingRecommendations.has(this.getRecommendationDownloadKey(response));
+  }
+
+  private getRecommendationDownloadKey(response: SiembraRecommendationResponse): string {
+    return response.prediccion_id ?? `${response.lote_id}-${response.fecha_generacion}`;
+  }
+
+  private buildResultFilename(response: SiembraRecommendationResponse): string {
+    const lote = this.sanitizeForFile(response.lote_id);
+    const campanaValue = response.datos_entrada?.['campana'] as string | undefined;
+    const fecha = this.sanitizeForFile(campanaValue ?? response.fecha_generacion);
+    return `recomendacion-${lote}-${fecha}.pdf`;
+  }
+
+  private triggerFileDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private sanitizeForFile(value?: string): string {
+    if (!value) {
+      return 'informe';
+    }
+    return value.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
   }
 }

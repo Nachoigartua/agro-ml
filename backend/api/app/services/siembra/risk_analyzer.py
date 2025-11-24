@@ -367,7 +367,7 @@ class SiembraRiskAnalyzer:
             )
             return {"severidad": "alta", "descripcion": descripcion}, contexto
 
-        return {"severidad": "apto", "descripcion": "✅ Apto para siembra."}, contexto
+        return {"severidad": "apto", "descripcion": "Sin riesgos detectados."}, contexto
 
     @staticmethod
     def _format_risk_entry(riesgo: Dict[str, str]) -> str:

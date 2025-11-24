@@ -6,6 +6,9 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Sistema de recomendaciones agrícolas basado en Machine Learning">
+ <!-- Ahora https://*.tile.openstreetmap.org está en la whitelist de img-src
+, antes cargaba bien el mapa porque estaba cargado local. Cambio minimo -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:8000 http://backend:8000 ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; font-src 'self' data:;">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body>
