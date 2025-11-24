@@ -62,6 +62,8 @@ class RecommendationPDFGenerator:
             rightMargin=2 * cm,
             topMargin=2 * cm,
             bottomMargin=2 * cm,
+            title="Recomendacion Siembra",
+            author="Agro-ML",
         )
 
         story: list[Any] = []
