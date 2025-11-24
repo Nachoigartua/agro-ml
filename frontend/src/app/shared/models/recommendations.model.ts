@@ -1,5 +1,5 @@
-export interface SiembraRecommendationRequest {
-  lote_id: string;
+export interface BulkSiembraRecommendationRequest {
+  lote_ids: string[];
   cultivo: string;
   campana: string;
   fecha_consulta: string;
@@ -32,6 +32,7 @@ export type CostBreakdown = Record<string, number>;
 export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unknown> {
   lote_id: string;
   tipo_recomendacion: string;
+  prediccion_id?: string;
   recomendacion_principal: TPrincipal;
   alternativas: TAlternative[];
   nivel_confianza: number;
@@ -44,6 +45,18 @@ export interface RecomendacionResponse<TPrincipal = unknown, TAlternative = unkn
 export interface SiembraRecommendationResponse extends RecomendacionResponse<RecommendationWindow, RecommendationAlternative> {
   tipo_recomendacion: 'siembra';
   cultivo: string;
+}
+
+export interface BulkSiembraRecommendationItem {
+  lote_id: string;
+  success: boolean;
+  response?: SiembraRecommendationResponse;
+  error?: string;
+}
+
+export interface BulkSiembraRecommendationResponse {
+  total: number;
+  resultados: BulkSiembraRecommendationItem[];
 }
 
 export interface SiembraHistoryItem {
@@ -65,6 +78,11 @@ export interface SiembraHistoryItem {
 export interface SiembraHistoryResponse {
   total: number;
   items: SiembraHistoryItem[];
+}
+
+export interface RecommendationPdfRequest {
+  recomendacion: SiembraRecommendationResponse;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SiembraHistoryFilters {

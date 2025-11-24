@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from .clients.mock_main_system_client import MockMainSystemAPIClient
 from .db.persistence import PersistenceContext
 from .services.siembra.recommendation_service import SiembraRecommendationService
+from .services.pdf_generator import RecommendationPDFGenerator
 
 
 async def get_persistence_context() -> AsyncGenerator[PersistenceContext, None]:
@@ -31,10 +32,14 @@ async def get_main_system_client(request: Request) -> MockMainSystemAPIClient:
 
 async def get_siembra_service(
     client: MockMainSystemAPIClient = Depends(get_main_system_client),
-    persistence: PersistenceContext = Depends(get_persistence_context),
 ) -> SiembraRecommendationService:
     """Proporciona el servicio de recomendaciones de siembra."""
     return SiembraRecommendationService(
         main_system_client=client,
-        persistence_context=persistence,
+        persistence_context_factory=PersistenceContext,
     )
+
+
+async def get_pdf_generator() -> RecommendationPDFGenerator:
+    """Proporciona el generador de PDFs para recomendaciones."""
+    return RecommendationPDFGenerator()

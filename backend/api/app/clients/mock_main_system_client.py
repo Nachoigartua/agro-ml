@@ -85,8 +85,31 @@ LOTES_DB: Dict[str, Dict] = {
             "precipitacion_marzo": 70.0,
             "precipitacion_abril": 55.0,
             "precipitacion_mayo": 40.0,
+        }
+    },
+    "d5bf2bcd-9289-4bb0-9c35-5c3750086511": {
+        "lote_id": "d5bf2bcd-9289-4bb0-9c35-5c3750086511",
+        "nombre": "Lote Entre Ríos Norte",
+        "establecimiento_id": "est-901",
+        "superficie_ha": 95.0,
+        "ubicacion": {
+            "latitud": -30.909443,
+            "longitud": -58.314822,
         },
-        "cultivo_anterior": "trigo",
+        "suelo": {
+            "tipo_suelo": "argisol franco limoso",
+            "ph_suelo": 6.8,
+            "materia_organica": 3.8,
+            "materia_organica_pct": 3.8,
+        },
+        "clima": {
+            "temp_media_marzo": 24.0,
+            "temp_media_abril": 20.0,
+            "temp_media_mayo": 16.0,
+            "precipitacion_marzo": 140.0,
+            "precipitacion_abril": 120.0,
+            "precipitacion_mayo": 95.0,
+        }
     },
 }
 

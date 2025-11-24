@@ -3,9 +3,13 @@ import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ApiService } from '@core/services/api.service';
+import { RecommendationsService } from '@core/services/recommendations.service';
 import {
+  RecommendationAlternative,
+  RecommendationWindow,
   SiembraHistoryFilters,
   SiembraHistoryItem,
+  SiembraRecommendationResponse,
 } from '@shared/models/recommendations.model';
 import {
   CAMPANAS_DISPONIBLES,
@@ -33,6 +37,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   totalHistory = 0;
   historyItems: SiembraHistoryItem[] = [];
+  pdfError: string | null = null;
 
   private allHistoryItems: SiembraHistoryItem[] = [];
   private filteredHistoryItems: SiembraHistoryItem[] = [];
@@ -42,13 +47,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private readonly loteLabelMap = new Map<string, string>();
   private readonly selectedLotes = new Set<string>();
+  private readonly downloadingHistoryIds = new Set<string>();
+  detailRecommendation: SiembraRecommendationResponse | null = null;
+  detailLoteLabel = '';
 
   constructor(
     private readonly apiService: ApiService,
-    private readonly formBuilder: FormBuilder
+    private readonly formBuilder: FormBuilder,
+    private readonly recommendationsService: RecommendationsService
   ) {
     this.serverFiltersForm = this.formBuilder.group({
-      lote_id: [''],
+      lote_id: [[]],
       cultivo: [''],
       campana: [''],
     });
@@ -69,6 +78,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loadDashboardData(): void {
     this.isLoading = true;
     this.error = null;
+    this.pdfError = null;
     const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
     this.lastAppliedFilters = JSON.stringify(filters);
 
@@ -96,6 +106,40 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.activeRequestSubscription = requestSub;
     this.subscriptions.add(requestSub);
+  }
+
+  onDownloadHistoryPdf(item: SiembraHistoryItem): void {
+    if (!item.id) {
+      return;
+    }
+    const id = String(item.id);
+    if (this.downloadingHistoryIds.has(id)) {
+      return;
+    }
+    this.pdfError = null;
+    this.downloadingHistoryIds.add(id);
+    const downloadSub = this.recommendationsService
+      .downloadHistoryPdf(id)
+      .subscribe({
+        next: (blob) => {
+          const filename = this.buildHistoryFilename(item);
+          this.triggerFileDownload(blob, filename);
+        },
+        error: () => {
+          this.pdfError = 'No pudimos descargar el PDF de esta recomendación. Intenta nuevamente.';
+        },
+        complete: () => {
+          this.downloadingHistoryIds.delete(id);
+        }
+      });
+    this.subscriptions.add(downloadSub);
+  }
+
+  isHistoryPdfLoading(item: SiembraHistoryItem): boolean {
+    if (!item.id) {
+      return false;
+    }
+    return this.downloadingHistoryIds.has(String(item.id));
   }
 
   resolveConfidence(item: SiembraHistoryItem): number | null {
@@ -154,26 +198,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get totalSummaryText(): string {
-    if (this.totalHistory === 0) {
+    const current = this.historyItems.length;
+    if (current === 0) {
       return 'Sin recomendaciones registradas';
     }
 
-    if (this.totalHistory === 1) {
+    if (current === 1) {
       return '1 recomendación encontrada';
     }
 
-    return `${this.totalHistory} recomendaciones encontradas`;
+    return `${current} recomendaciones encontradas`;
   }
 
   private setupFilterSubscriptions(): void {
     const filterChangesSub = this.serverFiltersForm.valueChanges
       .pipe(debounceTime(300))
       .subscribe((raw) => {
-        // Sincroniza selección de UI -> mapa
         const rawLote = (raw as any)?.lote_id as string | string[] | undefined;
         const ids = Array.isArray(rawLote)
-          ? rawLote.filter((v) => !!v)
+          ? rawLote.filter((v): v is string => !!v && v.length > 0)
           : (rawLote ? [rawLote] : []);
+
         if (this.miniMap) {
           this.miniMap.setSelection(ids);
         }
@@ -181,7 +226,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         ids.forEach((id) => this.selectedLotes.add(id));
         this.applyLocalFilters();
 
-        // Decide si hace request al backend
+        if (ids.length > 1) {
+          this.loadDashboardData();
+          return;
+        }
+
         const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
         const serialized = JSON.stringify(filters);
         if (serialized !== this.lastAppliedFilters) {
@@ -352,7 +401,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return '—';
     }
 
-    return this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
+    const display = this.loteLabelMap.get(loteId) ?? this.shortId(loteId);
+    return display === '—' ? display : `Lote ${display}`;
   }
 
   private bootstrapStaticOptions(): void {
@@ -372,48 +422,100 @@ export class DashboardComponent implements OnInit, OnDestroy {
   onSelectedLotesChange(ids: string[]): void {
     this.selectedLotes.clear();
     ids.forEach((id) => this.selectedLotes.add(id));
-    // Reflejar selección en el select (sin disparar requests)
+    // Reflejar selección en el select
     const control = this.serverFiltersForm.get('lote_id');
     if (control) {
-      // Dropdown simple: si hay 0 -> '', 1 -> id, >1 -> '' (mostrar 'Todos')
-      control.setValue(ids.length === 1 ? ids[0] : '', { emitEvent: false });
-    }
-
-    // Si 0 o 1 seleccionado, podemos pegar al backend; si >1, filtramos local
-    if (ids.length <= 1) {
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-        return;
+      const nextValue = [...ids];
+      const currentValue = control.value;
+      if (!Array.isArray(currentValue) || !this.areSelectionsEqual(currentValue, nextValue)) {
+        control.setValue(nextValue);
       }
-      this.applyLocalFilters();
+    }
+  }
+
+  clearLoteFilter(): void {
+    if (this.selectedLotes.size === 0) {
       return;
     }
-
-    // >1 seleccionado: cargar todo el historial (sin lote_id) y luego filtrar localmente
-    this.loadDashboardData();
+    this.selectedLotes.clear();
+    this.serverFiltersForm.get('lote_id')?.setValue([]);
+    this.miniMap?.clearSelection();
   }
 
-  // Maneja cambios normales del dropdown; la lógica principal ya está en valueChanges del form.
-  onLoteDropdownChange(event: Event): void {
-    // No hacemos nada aquí; el valueChanges del form se encarga.
+  trackLoteOption(_index: number, option: LoteOption): string {
+    return option.value;
   }
 
-  // Caso especial: si ya está en '' (Todos), seleccionar otra vez no dispara valueChanges.
-  // Detectamos el click y, si corresponde, limpiamos selección del mapa y filtros locales.
-  onLoteDropdownClick(event: Event): void {
-    const current = (event.target as HTMLSelectElement)?.value ?? '';
-    if (current === '' && this.selectedLotes.size > 0) {
-      this.miniMap?.clearSelection();
-      this.selectedLotes.clear();
-      this.applyLocalFilters();
+  get selectedLoteCount(): number {
+    const value = this.serverFiltersForm.value?.lote_id;
+    return Array.isArray(value) ? value.length : (value ? 1 : 0);
+  }
 
-      const filters = this.normalizeFilterPayload(this.serverFiltersForm.value);
-      const serialized = JSON.stringify(filters);
-      if (serialized !== this.lastAppliedFilters) {
-        this.loadDashboardData();
-      }
+  private areSelectionsEqual(current: string[], next: string[]): boolean {
+    if (current.length !== next.length) {
+      return false;
     }
+    return current.every((value, index) => value === next[index]);
+  }
+
+  private buildHistoryFilename(item: SiembraHistoryItem): string {
+    const lote = this.sanitizeFileValue(this.getLoteLabel(item.lote_id));
+    const fecha = item.fecha_creacion ? this.sanitizeFileValue(item.fecha_creacion) : 'sin-fecha';
+    return `historial-${lote}-${fecha}.pdf`;
+  }
+
+  private triggerFileDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private sanitizeFileValue(value: string | undefined | null): string {
+    if (!value) {
+      return 'documento';
+    }
+    return value.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  }
+
+    openDetail(item: SiembraHistoryItem): void {
+    this.detailRecommendation = this.mapHistoryItemToRecommendation(item);
+    this.detailLoteLabel = this.getLoteLabel(item.lote_id);
+  }
+
+  closeDetail(): void {
+    this.detailRecommendation = null;
+    this.detailLoteLabel = '';
+  }
+
+  private mapHistoryItemToRecommendation(item: SiembraHistoryItem): SiembraRecommendationResponse {
+    const principal = item.recomendacion_principal as RecommendationWindow;
+    const alternativas = (item.alternativas ?? []) as RecommendationAlternative[];
+    const datosEntrada = item.datos_entrada ?? {};
+    const nivelConfianza =
+      typeof item.nivel_confianza === 'number'
+        ? item.nivel_confianza
+        : (typeof principal?.confianza === 'number' ? principal.confianza : 0);
+
+    const fechaGeneracion =
+      item.fecha_creacion ??
+      (typeof datosEntrada['fecha_generacion'] === 'string' ? (datosEntrada['fecha_generacion'] as string) : new Date().toISOString());
+
+    const cultivo = item.cultivo ?? (datosEntrada['cultivo'] as string) ?? '';
+
+    return {
+      lote_id: item.lote_id,
+      tipo_recomendacion: 'siembra',
+      recomendacion_principal: principal,
+      alternativas,
+      nivel_confianza: nivelConfianza,
+      costos_estimados: undefined,
+      fecha_generacion: fechaGeneracion,
+      cultivo,
+      datos_entrada: datosEntrada,
+      metadata: item.modelo_version ? { modelo_version: item.modelo_version } : undefined,
+    };
   }
 }

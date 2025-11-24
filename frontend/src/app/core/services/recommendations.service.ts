@@ -2,7 +2,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '@environments/environment';
-import { SiembraRecommendationRequest, SiembraRecommendationResponse } from '@shared/models/recommendations.model';
+import {
+  BulkSiembraRecommendationRequest,
+  BulkSiembraRecommendationResponse,
+  RecommendationPdfRequest
+} from '@shared/models/recommendations.model';
 
 @Injectable({
   providedIn: 'root'
@@ -13,8 +17,20 @@ export class RecommendationsService {
   constructor(private readonly http: HttpClient) {}
 
   generateSiembraRecommendation(
-    payload: SiembraRecommendationRequest
-  ): Observable<SiembraRecommendationResponse> {
-    return this.http.post<SiembraRecommendationResponse>(`${this.baseUrl}/siembra`, payload);
+    payload: BulkSiembraRecommendationRequest
+  ): Observable<BulkSiembraRecommendationResponse> {
+    return this.http.post<BulkSiembraRecommendationResponse>(`${this.baseUrl}/siembra`, payload);
+  }
+
+  downloadRecommendationPdf(payload: RecommendationPdfRequest): Observable<Blob> {
+    return this.http.post<Blob>(`${this.baseUrl}/siembra/pdf`, payload, {
+      responseType: 'blob' as 'json'
+    });
+  }
+
+  downloadHistoryPdf(prediccionId: string): Observable<Blob> {
+    return this.http.get<Blob>(`${this.baseUrl}/siembra/${prediccionId}/pdf`, {
+      responseType: 'blob' as 'json'
+    });
   }
 }
